@@ -1,4 +1,3 @@
-// src/components/GameCanvas.tsx
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
@@ -74,6 +73,7 @@ const GameCanvas = () => {
     }
     return 0
   })
+  const [isMuted, setIsMuted] = useState(false)
 
   const resetGame = () => {
     gameStateRef.current = {
@@ -140,6 +140,8 @@ const GameCanvas = () => {
       if (gameStateRef.current.gameOver || !gameStarted || gameStateRef.current.isPaused) return
       const p = gameStateRef.current.player
       const speed = gameStateRef.current.activePowerUps.speed > 0 ? BULLET_SPEED * 1.5 : BULLET_SPEED
+      
+      soundManager.shoot()
       
       if (gameStateRef.current.activePowerUps.multishot > 0) {
         // Triple shot
@@ -313,6 +315,9 @@ const GameCanvas = () => {
           state.activePowerUps[powerUp.type] = powerUp.duration
           powerUp.y = 999 // Mark for removal
           
+          // Sound and visual feedback
+          soundManager.powerUp()
+          
           // Create sparkle effect on collection
           particleSystemRef.current.createExplosion(
             powerUp.x + powerUp.width / 2,
@@ -340,6 +345,9 @@ const GameCanvas = () => {
             bullet.life = 0
             state.score += Math.floor(asteroid.size * bulletDamage)
             
+            // Sound and visual feedback
+            soundManager.explosion()
+            
             // Create explosion particles
             particleSystemRef.current.createExplosion(
               asteroid.x + asteroid.size / 2,
@@ -357,6 +365,9 @@ const GameCanvas = () => {
         if (checkCollision(asteroid, state.player)) {
           state.gameOver = true
           setGameOver(true)
+          
+          // Sound and visual feedback
+          soundManager.collision()
           
           // Track game over event
           analytics.gameOver(state.score)
@@ -572,6 +583,12 @@ const GameCanvas = () => {
           className="px-4 py-2 bg-yellow-500 rounded hover:bg-yellow-600 transition-colors"
         >
           {isPaused ? 'Resume' : 'Pause'}
+        </button>
+        <button
+          onClick={() => setIsMuted(soundManager.toggleMute())}
+          className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+        >
+          {isMuted ? '🔇' : '🔊'}
         </button>
         <button
           onClick={() => setShowLevelSelect(true)}
