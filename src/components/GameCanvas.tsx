@@ -5,6 +5,9 @@ import React, { useRef, useEffect, useState } from 'react'
 import { Bullet, Asteroid } from '@/lib/game/types'
 import { checkCollision, randomBetween } from '@/lib/game/utils'
 import { analytics } from '@/lib/analytics'
+import { ScreenShake } from '@/lib/game/screenShake'
+import { ParticleSystem } from '@/lib/game/particles'
+import { soundManager } from '@/lib/game/sounds'
 import AnalyticsDashboard from './AnalyticsDashboard'
 
 const PLAYER_SIZE = 20
@@ -42,6 +45,8 @@ const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const keysRef = useRef<Record<string, boolean>>({})
   const mousePosRef = useRef({ x: 400, y: 300 })
+  const screenShakeRef = useRef(new ScreenShake())
+  const particleSystemRef = useRef(new ParticleSystem())
   const gameStateRef = useRef({
     player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
     bullets: [] as Bullet[],
@@ -252,6 +257,9 @@ const GameCanvas = () => {
       if (state.activePowerUps.multishot > 0) state.activePowerUps.multishot -= 16
       if (state.activePowerUps.bigship > 0) state.activePowerUps.bigship -= 16
 
+      // Update particles
+      particleSystemRef.current.update()
+
       // Update player
       let moveX = 0, moveY = 0
       if (keysRef.current['w']) moveY -= 1
@@ -305,6 +313,14 @@ const GameCanvas = () => {
           state.activePowerUps[powerUp.type] = powerUp.duration
           powerUp.y = 999 // Mark for removal
           
+          // Create sparkle effect on collection
+          particleSystemRef.current.createExplosion(
+            powerUp.x + powerUp.width / 2,
+            powerUp.y + powerUp.height / 2,
+            6,
+            powerUp.type === 'speed' ? 'yellow' : powerUp.type === 'multishot' ? 'orange' : 'gold'
+          )
+          
           // Track power-up collection
           analytics.collectPowerUp(powerUp.type)
         }
@@ -323,6 +339,17 @@ const GameCanvas = () => {
             destroyed = true
             bullet.life = 0
             state.score += Math.floor(asteroid.size * bulletDamage)
+            
+            // Create explosion particles
+            particleSystemRef.current.createExplosion(
+              asteroid.x + asteroid.size / 2,
+              asteroid.y + asteroid.size / 2,
+              8,
+              'white'
+            )
+            
+            // Small shake on asteroid destruction
+            screenShakeRef.current.trigger(3, 100)
             break
           }
         }
@@ -333,6 +360,17 @@ const GameCanvas = () => {
           
           // Track game over event
           analytics.gameOver(state.score)
+          
+          // Create big explosion on player death
+          particleSystemRef.current.createExplosion(
+            state.player.x + PLAYER_SIZE / 2,
+            state.player.y + PLAYER_SIZE / 2,
+            20,
+            'cyan'
+          )
+          
+          // Trigger screen shake on collision
+          screenShakeRef.current.trigger(15, 300)
         }
 
         if (!destroyed) {
@@ -375,6 +413,11 @@ const GameCanvas = () => {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
       ctx.fillRect(0, 0, 800, 600)
 
+      // Apply screen shake
+      const shakeOffset = screenShakeRef.current.getOffset()
+      ctx.save()
+      ctx.translate(shakeOffset.x, shakeOffset.y)
+
       // Draw player
       const shipSize = state.activePowerUps.bigship > 0 ? 1.5 : 1
       ctx.save()
@@ -416,6 +459,9 @@ const GameCanvas = () => {
         ctx.stroke()
       })
 
+      // Draw particles
+      particleSystemRef.current.render(ctx)
+
       // Draw power-ups
       state.powerUps.forEach(p => {
         ctx.fillStyle = p.type === 'speed' ? 'yellow' : p.type === 'multishot' ? 'orange' : 'gold'
@@ -452,6 +498,9 @@ const GameCanvas = () => {
         ctx.fillStyle = 'gold'
         ctx.fillText(`Big Ship: ${Math.ceil(state.activePowerUps.bigship / 1000)}s`, 10, powerUpY)
       }
+
+      // Reset shake transform
+      ctx.restore()
 
       animationFrameId = requestAnimationFrame(gameLoop)
     }
