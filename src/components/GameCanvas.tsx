@@ -7,6 +7,7 @@ import { analytics } from '@/lib/analytics'
 import { ScreenShake } from '@/lib/game/screenShake'
 import { ParticleSystem } from '@/lib/game/particles'
 import { soundManager } from '@/lib/game/sounds'
+import { Starfield } from '@/lib/game/starfield'
 import AnalyticsDashboard from './AnalyticsDashboard'
 
 const PLAYER_SIZE = 20
