@@ -1,38 +1,30 @@
 // src/components/AuthForm.tsx
-'use client';
+'use client'
 
-import { createClient } from '@/lib/supabase/client';
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
-import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client'
+import { Auth } from '@supabase/auth-ui-react'
+import { ThemeSupa } from '@supabase/auth-ui-shared'
 
 export default function AuthForm() {
-  const supabase = createClient();
-  const [origin, setOrigin] = useState('');
-
-  useEffect(() => {
-    // This is needed to construct the redirect URL correctly on the client side
-    setOrigin(window.location.origin);
-  }, []);
+  const supabase = createClient()
 
   return (
     <Auth
       supabaseClient={supabase}
-      appearance={{ theme: ThemeSupa,
+      appearance={{ 
+        theme: ThemeSupa,
         variables: {
-            default: {
-                colors: {
-                    brand: 'cyan',
-                    brandAccent: '#0891b2',
-                    defaultButtonBackgroundHover: '#2dd4bf',
-                }
+          default: {
+            colors: {
+              brand: '#06b6d4',
+              brandAccent: '#0891b2',
             }
+          }
         }
-       }}
+      }}
       theme="dark"
-      showLinks={true}
-      providers={['github']} // Add social providers here
-      redirectTo={origin ? `${origin}/auth/callback` : undefined}
+      providers={[]}
+      redirectTo={`${window.location.origin}/auth/callback`}
     />
-  );
+  )
 }
