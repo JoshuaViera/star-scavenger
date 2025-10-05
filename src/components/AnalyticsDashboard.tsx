@@ -6,7 +6,7 @@ import { analytics } from '@/lib/analytics'
 
 export default function AnalyticsDashboard() {
   const [show, setShow] = useState(false)
-  const [summary, setSummary] = useState<any>(null)
+  const [summary, setSummary] = useState<ReturnType<typeof analytics.getAnalyticsSummary> | null>(null)
 
   useEffect(() => {
     if (show) {
@@ -138,7 +138,7 @@ export default function AnalyticsDashboard() {
           <h3 className="text-lg font-bold text-white mb-2">Key Insights</h3>
           <ul className="text-sm text-gray-300 space-y-2">
             <li>
-              <strong>Retry Rate:</strong> {summary.retryRate}% of players click "Play Again" after game over. 
+            <strong>Retry Rate:</strong> {summary.retryRate}% of players click &quot;Play Again&quot; after game over.
               {summary.retryRate > 60 && ' This is excellent and validates your core gameplay loop!'}
               {summary.retryRate < 40 && ' This suggests players may be frustrated - consider difficulty adjustments.'}
             </li>
