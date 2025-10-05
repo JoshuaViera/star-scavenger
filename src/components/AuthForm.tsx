@@ -4,9 +4,15 @@
 import { createClient } from '@/lib/supabase/client'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
+import { useEffect, useState } from 'react'
 
 export default function AuthForm() {
   const supabase = createClient()
+  const [redirectUrl, setRedirectUrl] = useState('')
+
+  useEffect(() => {
+    setRedirectUrl(`${window.location.origin}/auth/callback`)
+  }, [])
 
   return (
     <Auth
@@ -24,7 +30,7 @@ export default function AuthForm() {
       }}
       theme="dark"
       providers={[]}
-      redirectTo={`${window.location.origin}/auth/callback`}
+      redirectTo={redirectUrl}
     />
   )
 }
