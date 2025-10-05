@@ -4,6 +4,8 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { Bullet, Asteroid } from '@/lib/game/types'
 import { checkCollision, randomBetween } from '@/lib/game/utils'
+import { analytics } from '@/lib/analytics'
+import AnalyticsDashboard from './AnalyticsDashboard'
 
 const PLAYER_SIZE = 20
 const PLAYER_SPEED = 3
@@ -86,6 +88,9 @@ const GameCanvas = () => {
     setLevelComplete(false)
     setGameStarted(true)
     setIsPaused(false)
+    
+    // Track new session start
+    analytics.startSession(gameStateRef.current.currentLevel)
   }
 
   const selectLevel = (level: number) => {
@@ -94,6 +99,13 @@ const GameCanvas = () => {
     setShowLevelSelect(false)
     resetGame()
   }
+
+  // Track when game actually starts
+  useEffect(() => {
+    if (gameStarted && !gameOver) {
+      analytics.startSession(currentLevel)
+    }
+  }, [gameStarted, gameOver, currentLevel])
 
   // Input handling
   useEffect(() => {
@@ -292,6 +304,9 @@ const GameCanvas = () => {
             py + ph > powerUp.y) {
           state.activePowerUps[powerUp.type] = powerUp.duration
           powerUp.y = 999 // Mark for removal
+          
+          // Track power-up collection
+          analytics.collectPowerUp(powerUp.type)
         }
       }
       state.powerUps = state.powerUps.filter(p => p.y < 650)
@@ -315,6 +330,9 @@ const GameCanvas = () => {
         if (checkCollision(asteroid, state.player)) {
           state.gameOver = true
           setGameOver(true)
+          
+          // Track game over event
+          analytics.gameOver(state.score)
         }
 
         if (!destroyed) {
@@ -334,10 +352,14 @@ const GameCanvas = () => {
             state.unlockedLevels = state.currentLevel + 1
             setUnlockedLevels(state.unlockedLevels)
           }
+          
+          // Track level progression
+          analytics.updateLevel(state.currentLevel + 1)
         } else {
           // Beat final level
           state.gameOver = true
           setGameOver(true)
+          analytics.gameOver(state.score)
         }
       }
 
@@ -491,6 +513,7 @@ const GameCanvas = () => {
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-900">
+      <AnalyticsDashboard />
       <div className="absolute top-4 right-4 flex gap-2 z-10">
         <button
           onClick={() => {
@@ -532,6 +555,7 @@ const GameCanvas = () => {
               onClick={() => {
                 gameStateRef.current.currentLevel += 1
                 setCurrentLevel(gameStateRef.current.currentLevel)
+                analytics.retry()
                 resetGame()
               }}
               className="px-6 py-3 bg-cyan-500 rounded hover:bg-cyan-600 transition-colors"
@@ -558,7 +582,10 @@ const GameCanvas = () => {
           {score > highScore && <p className="text-xl mt-2 text-yellow-400">New High Score!</p>}
           <div className="flex gap-4 mt-8">
             <button 
-              onClick={resetGame}
+              onClick={() => {
+                analytics.retry()
+                resetGame()
+              }}
               className="px-6 py-3 bg-cyan-500 rounded hover:bg-cyan-600 transition-colors"
             >
               Replay Level
