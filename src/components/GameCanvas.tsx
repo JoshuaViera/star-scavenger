@@ -1,7 +1,7 @@
 // src/components/GameCanvas.tsx
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Player, Bullet, Asteroid } from '@/lib/game/types';
 import { checkCollision, randomBetween } from '@/lib/game/utils';
 
@@ -28,7 +28,7 @@ const GameCanvas = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = true; };
     const handleKeyUp = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = false; };
-    const handleShoot = (e: MouseEvent) => {
+    const handleShoot = () => {
         if (gameOver) return;
         setBullets(prev => [
             ...prev,
@@ -88,7 +88,7 @@ const GameCanvas = () => {
     const gameLoop = () => {
       // --- UPDATE LOGIC ---
       // Player movement (8-directional)
-      let newPlayer = { ...player };
+      const newPlayer = { ...player };
       let moveX = 0;
       let moveY = 0;
       if (keysRef.current['w']) moveY -= 1;
