@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { analytics } from '@/lib/analytics'
+import Link from 'next/link'
 
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -67,16 +68,15 @@ export default function AdminPage() {
             >
               Refresh Data
             </button>
-            <a
+            <Link
               href="/"
               className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
             >
               Back to Game
-            </a>
+            </Link>
           </div>
         </div>
 
-        {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-gray-800 p-6 rounded-lg">
             <div className="text-gray-400 text-sm mb-2">Total Plays</div>
@@ -99,7 +99,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Level Distribution */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Highest Level Reached</h3>
           <div className="space-y-3">
@@ -126,7 +125,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Power-Up Usage */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Power-Up Collection</h3>
           <div className="grid grid-cols-3 gap-4">
@@ -148,12 +146,11 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Insights */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Key Insights</h3>
           <div className="space-y-3 text-gray-300">
             <div className="p-4 bg-gray-900 rounded">
-              <strong className="text-white">Engagement:</strong> {summary.retryRate}% retry rate
+              <strong className="text-white">Engagement:</strong> {summary.retryRate}% retry rate 
               {summary.retryRate > 60 && ' indicates excellent core gameplay loop.'}
               {summary.retryRate > 40 && summary.retryRate <= 60 && ' shows good player engagement.'}
               {summary.retryRate <= 40 && ' suggests frustration - consider difficulty adjustments.'}
@@ -170,7 +167,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Export */}
         <div className="flex justify-center">
           <button
             onClick={() => analytics.exportData()}

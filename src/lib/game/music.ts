@@ -6,9 +6,11 @@ class MusicManager {
   private oscillators: OscillatorNode[] = []
   private isPlaying: boolean = false
   private isMuted: boolean = false
+  private intervalId: number | null = null
 
   constructor() {
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
       this.masterGain = this.audioContext.createGain()
       this.masterGain.gain.value = 0.15
@@ -21,32 +23,30 @@ class MusicManager {
 
     this.isPlaying = true
 
-    // Chord progression: Am - F - C - G
     const chords = [
-      [220, 262, 330], // Am
-      [175, 220, 262], // F
-      [131, 165, 196], // C
-      [196, 247, 294]  // G
+      [220, 262, 330],
+      [175, 220, 262],
+      [131, 165, 196],
+      [196, 247, 294]
     ]
 
     let chordIndex = 0
-    const chordDuration = 4000 // 4 seconds per chord
+    const chordDuration = 4000
 
     const playChord = () => {
       if (!this.isPlaying || !this.audioContext || !this.masterGain) return
 
-      // Stop previous oscillators
       this.oscillators.forEach(osc => {
         try {
           osc.stop()
-        } catch (e) {
-          // Ignore if already stopped
+        } catch {
+          // Ignore
         }
       })
       this.oscillators = []
 
       const chord = chords[chordIndex]
-      chord.forEach((freq, i) => {
+      chord.forEach(freq => {
         const osc = this.audioContext!.createOscillator()
         const gain = this.audioContext!.createGain()
 
@@ -70,21 +70,19 @@ class MusicManager {
     }
 
     playChord()
-    const intervalId = setInterval(playChord, chordDuration)
-
-    // Store interval ID for cleanup
-    ;(this as any).intervalId = intervalId
+    this.intervalId = window.setInterval(playChord, chordDuration)
   }
 
   stop() {
     this.isPlaying = false
-    if ((this as any).intervalId) {
-      clearInterval((this as any).intervalId)
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId)
+      this.intervalId = null
     }
     this.oscillators.forEach(osc => {
       try {
         osc.stop()
-      } catch (e) {
+      } catch {
         // Ignore
       }
     })

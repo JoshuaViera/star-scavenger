@@ -502,7 +502,7 @@ const GameCanvas = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <h1 className="text-6xl font-bold mb-8 text-cyan-400">Star Scavenger</h1>
-        <p className="text-xl mb-4">High Score: {highScore}</p>
+        {highScore > 0 && <p className="text-xl mb-4">High Score: {highScore}</p>}
         <button 
           onClick={() => setGameStarted(true)}
           className="px-8 py-4 text-2xl bg-cyan-500 rounded hover:bg-cyan-600 transition-colors mb-4"
