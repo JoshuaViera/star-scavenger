@@ -1,3 +1,4 @@
+// src/components/GameCanvas.tsx
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
@@ -8,7 +9,7 @@ import { ScreenShake } from '@/lib/game/screenShake'
 import { ParticleSystem } from '@/lib/game/particles'
 import { soundManager } from '@/lib/game/sounds'
 import { Starfield } from '@/lib/game/starfield'
-import AnalyticsDashboard from './AnalyticsDashboard'
+import { musicManager } from '@/lib/game/music'
 
 const PLAYER_SIZE = 20
 const PLAYER_SPEED = 3
@@ -47,6 +48,7 @@ const GameCanvas = () => {
   const mousePosRef = useRef({ x: 400, y: 300 })
   const screenShakeRef = useRef(new ScreenShake())
   const particleSystemRef = useRef(new ParticleSystem())
+  const starfieldRef = useRef(new Starfield(100))
   const gameStateRef = useRef({
     player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
     bullets: [] as Bullet[],
@@ -75,6 +77,7 @@ const GameCanvas = () => {
     return 0
   })
   const [isMuted, setIsMuted] = useState(false)
+  const [isMusicMuted, setIsMusicMuted] = useState(false)
 
   const resetGame = () => {
     gameStateRef.current = {
@@ -95,7 +98,6 @@ const GameCanvas = () => {
     setGameStarted(true)
     setIsPaused(false)
     
-    // Track new session start
     analytics.startSession(gameStateRef.current.currentLevel)
   }
 
@@ -106,14 +108,22 @@ const GameCanvas = () => {
     resetGame()
   }
 
-  // Track when game actually starts
   useEffect(() => {
     if (gameStarted && !gameOver) {
       analytics.startSession(currentLevel)
     }
   }, [gameStarted, gameOver, currentLevel])
 
-  // Input handling
+  useEffect(() => {
+    if (gameStarted && !gameOver && !isPaused) {
+      musicManager.start()
+    } else {
+      musicManager.stop()
+    }
+    
+    return () => musicManager.stop()
+  }, [gameStarted, gameOver, isPaused])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { 
       if (e.key.toLowerCase() === 'p') {
@@ -145,7 +155,6 @@ const GameCanvas = () => {
       soundManager.shoot()
       
       if (gameStateRef.current.activePowerUps.multishot > 0) {
-        // Triple shot
         for (let i = -1; i <= 1; i++) {
           const angle = p.rotation + (i * 0.2)
           gameStateRef.current.bullets.push({
@@ -184,7 +193,6 @@ const GameCanvas = () => {
     }
   }, [gameStarted, gameOver])
 
-  // Spawn asteroids
   useEffect(() => {
     if (!gameStarted) return
     const level = LEVELS[gameStateRef.current.currentLevel - 1]
@@ -212,7 +220,6 @@ const GameCanvas = () => {
     return () => clearInterval(spawnInterval)
   }, [gameStarted])
 
-  // Spawn power-ups
   useEffect(() => {
     if (!gameStarted) return
     
@@ -236,7 +243,6 @@ const GameCanvas = () => {
     return () => clearInterval(powerUpInterval)
   }, [gameStarted])
 
-  // Main game loop
   useEffect(() => {
     if (!gameStarted) return
     
@@ -255,15 +261,13 @@ const GameCanvas = () => {
         return
       }
 
-      // Decay power-ups
       if (state.activePowerUps.speed > 0) state.activePowerUps.speed -= 16
       if (state.activePowerUps.multishot > 0) state.activePowerUps.multishot -= 16
       if (state.activePowerUps.bigship > 0) state.activePowerUps.bigship -= 16
 
-      // Update particles
       particleSystemRef.current.update()
+      starfieldRef.current.update()
 
-      // Update player
       let moveX = 0, moveY = 0
       if (keysRef.current['w']) moveY -= 1
       if (keysRef.current['s']) moveY += 1
@@ -286,23 +290,19 @@ const GameCanvas = () => {
       )
       state.player.rotation = angle
 
-      // Update bullets
       state.bullets = state.bullets
         .map(b => ({ ...b, x: b.x + b.vx, y: b.y + b.vy, life: b.life - 1 }))
         .filter(b => b.life > 0 && b.x > -10 && b.x < 810 && b.y > -10 && b.y < 610)
 
-      // Update asteroids
       state.asteroids = state.asteroids
         .map(a => ({ ...a, x: a.x + a.vx, y: a.y + a.vy }))
         .filter(a => a.x > -a.size * 2 && a.x < 800 + a.size * 2 && 
                      a.y > -a.size * 2 && a.y < 600 + a.size * 2)
 
-      // Update power-ups
       state.powerUps = state.powerUps
         .map(p => ({ ...p, y: p.y + 2 }))
         .filter(p => p.y < 650)
 
-      // Check power-up collection
       for (const powerUp of state.powerUps) {
         const px = state.player.x
         const py = state.player.y
@@ -314,12 +314,10 @@ const GameCanvas = () => {
             py < powerUp.y + powerUp.height &&
             py + ph > powerUp.y) {
           state.activePowerUps[powerUp.type] = powerUp.duration
-          powerUp.y = 999 // Mark for removal
+          powerUp.y = 999
           
-          // Sound and visual feedback
           soundManager.powerUp()
           
-          // Create sparkle effect on collection
           particleSystemRef.current.createExplosion(
             powerUp.x + powerUp.width / 2,
             powerUp.y + powerUp.height / 2,
@@ -327,13 +325,11 @@ const GameCanvas = () => {
             powerUp.type === 'speed' ? 'yellow' : powerUp.type === 'multishot' ? 'orange' : 'gold'
           )
           
-          // Track power-up collection
           analytics.collectPowerUp(powerUp.type)
         }
       }
       state.powerUps = state.powerUps.filter(p => p.y < 650)
 
-      // Collision detection
       const survivingAsteroids = []
       const bulletDamage = state.activePowerUps.bigship > 0 ? 2 : 1
       
@@ -346,10 +342,8 @@ const GameCanvas = () => {
             bullet.life = 0
             state.score += Math.floor(asteroid.size * bulletDamage)
             
-            // Sound and visual feedback
             soundManager.explosion()
             
-            // Create explosion particles
             particleSystemRef.current.createExplosion(
               asteroid.x + asteroid.size / 2,
               asteroid.y + asteroid.size / 2,
@@ -357,7 +351,6 @@ const GameCanvas = () => {
               'white'
             )
             
-            // Small shake on asteroid destruction
             screenShakeRef.current.trigger(3, 100)
             break
           }
@@ -367,13 +360,10 @@ const GameCanvas = () => {
           state.gameOver = true
           setGameOver(true)
           
-          // Sound and visual feedback
           soundManager.collision()
           
-          // Track game over event
           analytics.gameOver(state.score)
           
-          // Create big explosion on player death
           particleSystemRef.current.createExplosion(
             state.player.x + PLAYER_SIZE / 2,
             state.player.y + PLAYER_SIZE / 2,
@@ -381,7 +371,6 @@ const GameCanvas = () => {
             'cyan'
           )
           
-          // Trigger screen shake on collision
           screenShakeRef.current.trigger(15, 300)
         }
 
@@ -394,7 +383,6 @@ const GameCanvas = () => {
       state.bullets = state.bullets.filter(b => b.life > 0)
       setScore(state.score)
 
-      // Check level completion
       if (state.score >= level.targetScore && !levelComplete) {
         if (state.currentLevel < 5) {
           setLevelComplete(true)
@@ -403,17 +391,14 @@ const GameCanvas = () => {
             setUnlockedLevels(state.unlockedLevels)
           }
           
-          // Track level progression
           analytics.updateLevel(state.currentLevel + 1)
         } else {
-          // Beat final level
           state.gameOver = true
           setGameOver(true)
           analytics.gameOver(state.score)
         }
       }
 
-      // Update high score
       if (state.score > highScore) {
         setHighScore(state.score)
         if (typeof window !== 'undefined') {
@@ -421,16 +406,15 @@ const GameCanvas = () => {
         }
       }
 
-      // Render
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
+      ctx.fillStyle = 'black'
       ctx.fillRect(0, 0, 800, 600)
 
-      // Apply screen shake
+      starfieldRef.current.render(ctx)
+
       const shakeOffset = screenShakeRef.current.getOffset()
       ctx.save()
       ctx.translate(shakeOffset.x, shakeOffset.y)
 
-      // Draw player
       const shipSize = state.activePowerUps.bigship > 0 ? 1.5 : 1
       ctx.save()
       ctx.translate(state.player.x + PLAYER_SIZE / 2, state.player.y + PLAYER_SIZE / 2)
@@ -447,7 +431,6 @@ const GameCanvas = () => {
       ctx.fill()
       ctx.restore()
 
-      // Draw bullets
       state.bullets.forEach(b => {
         ctx.fillStyle = state.activePowerUps.speed > 0 ? 'yellow' : 'magenta'
         ctx.shadowColor = state.activePowerUps.speed > 0 ? 'yellow' : 'magenta'
@@ -455,7 +438,6 @@ const GameCanvas = () => {
         ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
       })
       
-      // Draw asteroids
       state.asteroids.forEach(a => {
         ctx.strokeStyle = 'white'
         ctx.shadowColor = 'white'
@@ -471,10 +453,8 @@ const GameCanvas = () => {
         ctx.stroke()
       })
 
-      // Draw particles
       particleSystemRef.current.render(ctx)
 
-      // Draw power-ups
       state.powerUps.forEach(p => {
         ctx.fillStyle = p.type === 'speed' ? 'yellow' : p.type === 'multishot' ? 'orange' : 'gold'
         ctx.shadowColor = ctx.fillStyle
@@ -486,7 +466,6 @@ const GameCanvas = () => {
         ctx.fillText(p.type === 'speed' ? 'S' : p.type === 'multishot' ? 'M' : 'B', p.x + 8, p.y + 17)
       })
 
-      // Draw HUD
       ctx.shadowBlur = 0
       ctx.fillStyle = 'white'
       ctx.font = 'bold 20px Arial'
@@ -494,7 +473,6 @@ const GameCanvas = () => {
       ctx.fillText(`Score: ${state.score} / ${level.targetScore}`, 10, 55)
       ctx.fillText(`High Score: ${highScore}`, 10, 80)
 
-      // Draw active power-ups
       let powerUpY = 105
       if (state.activePowerUps.speed > 0) {
         ctx.fillStyle = 'yellow'
@@ -511,7 +489,6 @@ const GameCanvas = () => {
         ctx.fillText(`Big Ship: ${Math.ceil(state.activePowerUps.bigship / 1000)}s`, 10, powerUpY)
       }
 
-      // Reset shake transform
       ctx.restore()
 
       animationFrameId = requestAnimationFrame(gameLoop)
@@ -574,7 +551,6 @@ const GameCanvas = () => {
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-900">
-      <AnalyticsDashboard />
       <div className="absolute top-4 right-4 flex gap-2 z-10">
         <button
           onClick={() => {
@@ -590,6 +566,12 @@ const GameCanvas = () => {
           className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
         >
           {isMuted ? '🔇' : '🔊'}
+        </button>
+        <button
+          onClick={() => setIsMusicMuted(musicManager.toggleMute())}
+          className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+        >
+          {isMusicMuted ? '🎵' : '🎶'}
         </button>
         <button
           onClick={() => setShowLevelSelect(true)}
