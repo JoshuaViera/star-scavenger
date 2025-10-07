@@ -25,29 +25,29 @@ export interface EnemyBullet {
 
 export const ENEMY_TYPES = {
   scout: {
-    health: 1,
-    speed: 2.5,
-    size: 15,
-    fireRate: 2000,
-    bulletSpeed: 3,
+    health: 2,           // Was 1, now 2
+    speed: 1.8,          // Was 2.5, now slower
+    size: 25,            // Was 15, now bigger
+    fireRate: 2500,      // Was 2000, now shoots slower
+    bulletSpeed: 2.5,    // Was 3, now slower bullets
     points: 50,
     color: 'lime'
   },
   fighter: {
-    health: 2,
-    speed: 1.5,
-    size: 20,
-    fireRate: 1500,
-    bulletSpeed: 4,
+    health: 3,           // Was 2, now 3
+    speed: 1.2,          // Was 1.5, now slower
+    size: 30,            // Was 20, now bigger
+    fireRate: 2000,      // Was 1500, now shoots slower
+    bulletSpeed: 3,      // Was 4, now slower bullets
     points: 100,
     color: 'orange'
   },
   bomber: {
-    health: 4,
-    speed: 0.8,
-    size: 30,
-    fireRate: 1000,
-    bulletSpeed: 2.5,
+    health: 5,           // Was 4, now 5
+    speed: 0.6,          // Was 0.8, now slower
+    size: 40,            // Was 30, now bigger
+    fireRate: 1500,      // Was 1000, now shoots slower
+    bulletSpeed: 2,      // Was 2.5, now slower bullets
     points: 200,
     color: 'red'
   }
