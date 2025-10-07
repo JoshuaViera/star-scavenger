@@ -70,14 +70,15 @@ const GameCanvas = () => {
   const [unlockedLevels, setUnlockedLevels] = useState(1)
   const [showLevelSelect, setShowLevelSelect] = useState(false)
   const [levelComplete, setLevelComplete] = useState(false)
-  const [highScore, setHighScore] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return parseInt(localStorage.getItem('starScavengerHighScore') || '0')
-    }
-    return 0
-  })
+  const [highScore, setHighScore] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setHighScore(parseInt(localStorage.getItem('starScavengerHighScore') || '0'))
+    }
+  }, [])
 
   const resetGame = () => {
     gameStateRef.current = {
@@ -502,7 +503,7 @@ const GameCanvas = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <h1 className="text-6xl font-bold mb-8 text-cyan-400">Star Scavenger</h1>
-        {highScore > 0 && <p className="text-xl mb-4">High Score: {highScore}</p>}
+        <p className="text-xl mb-4">High Score: {highScore}</p>
         <button 
           onClick={() => setGameStarted(true)}
           className="px-8 py-4 text-2xl bg-cyan-500 rounded hover:bg-cyan-600 transition-colors mb-4"
