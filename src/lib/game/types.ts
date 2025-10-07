@@ -26,6 +26,6 @@ export interface PowerUp {
   y: number
   width: number
   height: number
-  type: 'speed' | 'multishot' | 'bigship'
+  type: 'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb'
   duration: number
 }

@@ -21,7 +21,7 @@ interface PowerUp {
   y: number
   width: number
   height: number
-  type: 'speed' | 'multishot' | 'bigship'
+  type: 'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb'
   duration: number
 }
 
@@ -49,6 +49,7 @@ const GameCanvas = () => {
   const screenShakeRef = useRef(new ScreenShake())
   const particleSystemRef = useRef(new ParticleSystem())
   const starfieldRef = useRef(new Starfield(100))
+  const lastShotTimeRef = useRef(0)
   const gameStateRef = useRef({
     player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
     bullets: [] as Bullet[],
@@ -57,7 +58,7 @@ const GameCanvas = () => {
     score: 0,
     gameOver: false,
     isPaused: false,
-    activePowerUps: { speed: 0, multishot: 0, bigship: 0 },
+    activePowerUps: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 },
     currentLevel: 1,
     unlockedLevels: 1
   })
@@ -89,7 +90,7 @@ const GameCanvas = () => {
       score: 0,
       gameOver: false,
       isPaused: false,
-      activePowerUps: { speed: 0, multishot: 0, bigship: 0 },
+      activePowerUps: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 },
       currentLevel: gameStateRef.current.currentLevel,
       unlockedLevels: gameStateRef.current.unlockedLevels
     }
@@ -98,7 +99,7 @@ const GameCanvas = () => {
     setLevelComplete(false)
     setGameStarted(true)
     setIsPaused(false)
-    
+
     analytics.startSession(gameStateRef.current.currentLevel)
   }
 
@@ -121,12 +122,12 @@ const GameCanvas = () => {
     } else {
       musicManager.stop()
     }
-    
+
     return () => musicManager.stop()
   }, [gameStarted, gameOver, isPaused])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { 
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'p') {
         if (gameStarted && !gameOver) {
           gameStateRef.current.isPaused = !gameStateRef.current.isPaused
@@ -134,27 +135,53 @@ const GameCanvas = () => {
         }
         return
       }
-      keysRef.current[e.key.toLowerCase()] = true 
+
+      if (e.key === ' ' && gameStateRef.current.activePowerUps.bomb > 0) {
+        e.preventDefault()
+        gameStateRef.current.asteroids.forEach(a => {
+          particleSystemRef.current.createExplosion(
+            a.x + a.size / 2,
+            a.y + a.size / 2,
+            12,
+            'orange'
+          )
+          gameStateRef.current.score += Math.floor(a.size)
+        })
+        gameStateRef.current.asteroids = []
+        gameStateRef.current.activePowerUps.bomb = 0
+        soundManager.explosion()
+        screenShakeRef.current.trigger(20, 400)
+        return
+      }
+
+      keysRef.current[e.key.toLowerCase()] = true
     }
-    const handleKeyUp = (e: KeyboardEvent) => { 
-      keysRef.current[e.key.toLowerCase()] = false 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current[e.key.toLowerCase()] = false
     }
     const handleMouseMove = (e: MouseEvent) => {
       if (canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect()
-        mousePosRef.current = { 
-          x: e.clientX - rect.left, 
-          y: e.clientY - rect.top 
+        mousePosRef.current = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
         }
       }
     }
     const handleShoot = () => {
       if (gameStateRef.current.gameOver || !gameStarted || gameStateRef.current.isPaused) return
+
+      const now = Date.now()
+      const fireRate = gameStateRef.current.activePowerUps.rapidfire > 0 ? 100 : 200
+      if (now - lastShotTimeRef.current < fireRate) return
+      lastShotTimeRef.current = now
+
       const p = gameStateRef.current.player
       const speed = gameStateRef.current.activePowerUps.speed > 0 ? BULLET_SPEED * 1.5 : BULLET_SPEED
-      
+      const lifeBonus = gameStateRef.current.activePowerUps.rapidfire > 0 ? 1.5 : 1
+
       soundManager.shoot()
-      
+
       if (gameStateRef.current.activePowerUps.multishot > 0) {
         for (let i = -1; i <= 1; i++) {
           const angle = p.rotation + (i * 0.2)
@@ -165,7 +192,7 @@ const GameCanvas = () => {
             height: 4,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
-            life: BULLET_LIFESPAN
+            life: BULLET_LIFESPAN * lifeBonus
           })
         }
       } else {
@@ -176,7 +203,7 @@ const GameCanvas = () => {
           height: 4,
           vx: Math.cos(p.rotation) * speed,
           vy: Math.sin(p.rotation) * speed,
-          life: BULLET_LIFESPAN
+          life: BULLET_LIFESPAN * lifeBonus
         })
       }
     }
@@ -185,7 +212,7 @@ const GameCanvas = () => {
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('click', handleShoot)
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
@@ -197,15 +224,15 @@ const GameCanvas = () => {
   useEffect(() => {
     if (!gameStarted) return
     const level = LEVELS[gameStateRef.current.currentLevel - 1]
-    
+
     const spawnInterval = setInterval(() => {
-      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused || 
-          gameStateRef.current.asteroids.length >= level.asteroidCount) return
-      
+      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused ||
+        gameStateRef.current.asteroids.length >= level.asteroidCount) return
+
       const size = randomBetween(20, 50)
       const edge = Math.floor(randomBetween(0, 4))
       let x, y
-      
+
       if (edge === 0) { x = -size; y = Math.random() * 600 }
       else if (edge === 1) { x = 800 + size; y = Math.random() * 600 }
       else if (edge === 2) { y = -size; x = Math.random() * 800 }
@@ -217,36 +244,37 @@ const GameCanvas = () => {
         vy: randomBetween(-level.asteroidSpeed, level.asteroidSpeed)
       })
     }, level.spawnRate)
-    
+
     return () => clearInterval(spawnInterval)
   }, [gameStarted])
 
   useEffect(() => {
     if (!gameStarted) return
-    
+
     const powerUpInterval = setInterval(() => {
-      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused || 
-          gameStateRef.current.powerUps.length >= 2) return
-      
-      const types: Array<'speed' | 'multishot' | 'bigship'> = ['speed', 'multishot', 'bigship']
+      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused ||
+        gameStateRef.current.powerUps.length >= 2) return
+
+      const types: Array<'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb'> =
+        ['speed', 'multishot', 'bigship', 'shield', 'rapidfire', 'bomb']
       const type = types[Math.floor(Math.random() * types.length)]
-      
+
       gameStateRef.current.powerUps.push({
         x: randomBetween(50, 750),
         y: -30,
         width: 25,
         height: 25,
         type,
-        duration: 8000
+        duration: type === 'bomb' ? 1 : 8000
       })
     }, 10000)
-    
+
     return () => clearInterval(powerUpInterval)
   }, [gameStarted])
 
   useEffect(() => {
     if (!gameStarted) return
-    
+
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx || !canvas) return
@@ -256,7 +284,7 @@ const GameCanvas = () => {
     const gameLoop = () => {
       const state = gameStateRef.current
       const level = LEVELS[state.currentLevel - 1]
-      
+
       if (state.gameOver || state.isPaused) {
         animationFrameId = requestAnimationFrame(gameLoop)
         return
@@ -265,6 +293,8 @@ const GameCanvas = () => {
       if (state.activePowerUps.speed > 0) state.activePowerUps.speed -= 16
       if (state.activePowerUps.multishot > 0) state.activePowerUps.multishot -= 16
       if (state.activePowerUps.bigship > 0) state.activePowerUps.bigship -= 16
+      if (state.activePowerUps.shield > 0) state.activePowerUps.shield -= 16
+      if (state.activePowerUps.rapidfire > 0) state.activePowerUps.rapidfire -= 16
 
       particleSystemRef.current.update()
       starfieldRef.current.update()
@@ -297,8 +327,8 @@ const GameCanvas = () => {
 
       state.asteroids = state.asteroids
         .map(a => ({ ...a, x: a.x + a.vx, y: a.y + a.vy }))
-        .filter(a => a.x > -a.size * 2 && a.x < 800 + a.size * 2 && 
-                     a.y > -a.size * 2 && a.y < 600 + a.size * 2)
+        .filter(a => a.x > -a.size * 2 && a.x < 800 + a.size * 2 &&
+          a.y > -a.size * 2 && a.y < 600 + a.size * 2)
 
       state.powerUps = state.powerUps
         .map(p => ({ ...p, y: p.y + 2 }))
@@ -309,23 +339,36 @@ const GameCanvas = () => {
         const py = state.player.y
         const pw = state.player.width
         const ph = state.player.height
-        
+
         if (px < powerUp.x + powerUp.width &&
-            px + pw > powerUp.x &&
-            py < powerUp.y + powerUp.height &&
-            py + ph > powerUp.y) {
-          state.activePowerUps[powerUp.type] = powerUp.duration
+          px + pw > powerUp.x &&
+          py < powerUp.y + powerUp.height &&
+          py + ph > powerUp.y) {
+          if (powerUp.type === 'bomb') {
+            state.activePowerUps.bomb = 1
+          } else {
+            state.activePowerUps[powerUp.type] = powerUp.duration
+          }
           powerUp.y = 999
-          
+
           soundManager.powerUp()
-          
+
+          const colors = {
+            speed: 'yellow',
+            multishot: 'orange',
+            bigship: 'gold',
+            shield: 'blue',
+            rapidfire: 'red',
+            bomb: 'purple'
+          }
+
           particleSystemRef.current.createExplosion(
             powerUp.x + powerUp.width / 2,
             powerUp.y + powerUp.height / 2,
             6,
-            powerUp.type === 'speed' ? 'yellow' : powerUp.type === 'multishot' ? 'orange' : 'gold'
+            colors[powerUp.type]
           )
-          
+
           analytics.collectPowerUp(powerUp.type)
         }
       }
@@ -333,53 +376,66 @@ const GameCanvas = () => {
 
       const survivingAsteroids = []
       const bulletDamage = state.activePowerUps.bigship > 0 ? 2 : 1
-      
+
       for (const asteroid of state.asteroids) {
         let destroyed = false
-        
+
         for (const bullet of state.bullets) {
           if (checkCollision(asteroid, bullet)) {
             destroyed = true
             bullet.life = 0
             state.score += Math.floor(asteroid.size * bulletDamage)
-            
+
             soundManager.explosion()
-            
+
             particleSystemRef.current.createExplosion(
               asteroid.x + asteroid.size / 2,
               asteroid.y + asteroid.size / 2,
               8,
               'white'
             )
-            
+
             screenShakeRef.current.trigger(3, 100)
             break
           }
         }
 
         if (checkCollision(asteroid, state.player)) {
-          state.gameOver = true
-          setGameOver(true)
-          
-          soundManager.collision()
-          
-          analytics.gameOver(state.score)
-          
-          particleSystemRef.current.createExplosion(
-            state.player.x + PLAYER_SIZE / 2,
-            state.player.y + PLAYER_SIZE / 2,
-            20,
-            'cyan'
-          )
-          
-          screenShakeRef.current.trigger(15, 300)
+          if (state.activePowerUps.shield > 0) {
+            state.activePowerUps.shield = 0
+            destroyed = true
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              15,
+              'blue'
+            )
+            soundManager.powerUp()
+            screenShakeRef.current.trigger(8, 200)
+          } else {
+            state.gameOver = true
+            setGameOver(true)
+
+            soundManager.collision()
+
+            analytics.gameOver(state.score)
+
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              20,
+              'cyan'
+            )
+
+            screenShakeRef.current.trigger(15, 300)
+          }
         }
 
         if (!destroyed) {
           survivingAsteroids.push(asteroid)
         }
       }
-      
+
       state.asteroids = survivingAsteroids
       state.bullets = state.bullets.filter(b => b.life > 0)
       setScore(state.score)
@@ -391,7 +447,7 @@ const GameCanvas = () => {
             state.unlockedLevels = state.currentLevel + 1
             setUnlockedLevels(state.unlockedLevels)
           }
-          
+
           analytics.updateLevel(state.currentLevel + 1)
         } else {
           state.gameOver = true
@@ -426,19 +482,33 @@ const GameCanvas = () => {
       ctx.lineTo(-10, -8)
       ctx.lineTo(-10, 8)
       ctx.closePath()
-      ctx.fillStyle = state.activePowerUps.bigship > 0 ? 'gold' : 'cyan'
-      ctx.shadowColor = state.activePowerUps.bigship > 0 ? 'gold' : 'cyan'
+
+      const shipColor = state.activePowerUps.bigship > 0 ? 'gold' :
+        state.activePowerUps.shield > 0 ? 'blue' : 'cyan'
+      ctx.fillStyle = shipColor
+      ctx.shadowColor = shipColor
       ctx.shadowBlur = 10
       ctx.fill()
+
+      if (state.activePowerUps.shield > 0) {
+        ctx.beginPath()
+        ctx.arc(0, 0, 20, 0, Math.PI * 2)
+        ctx.strokeStyle = 'rgba(0, 100, 255, 0.5)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
+
       ctx.restore()
 
       state.bullets.forEach(b => {
-        ctx.fillStyle = state.activePowerUps.speed > 0 ? 'yellow' : 'magenta'
-        ctx.shadowColor = state.activePowerUps.speed > 0 ? 'yellow' : 'magenta'
+        const bulletColor = state.activePowerUps.speed > 0 ? 'yellow' :
+          state.activePowerUps.rapidfire > 0 ? 'red' : 'magenta'
+        ctx.fillStyle = bulletColor
+        ctx.shadowColor = bulletColor
         ctx.shadowBlur = 15
         ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
       })
-      
+
       state.asteroids.forEach(a => {
         ctx.strokeStyle = 'white'
         ctx.shadowColor = 'white'
@@ -456,15 +526,33 @@ const GameCanvas = () => {
 
       particleSystemRef.current.render(ctx)
 
+      const powerUpColors = {
+        speed: 'yellow',
+        multishot: 'orange',
+        bigship: 'gold',
+        shield: 'blue',
+        rapidfire: 'red',
+        bomb: 'purple'
+      }
+
+      const powerUpLetters = {
+        speed: 'S',
+        multishot: 'M',
+        bigship: 'B',
+        shield: 'H',
+        rapidfire: 'R',
+        bomb: 'X'
+      }
+
       state.powerUps.forEach(p => {
-        ctx.fillStyle = p.type === 'speed' ? 'yellow' : p.type === 'multishot' ? 'orange' : 'gold'
+        ctx.fillStyle = powerUpColors[p.type]
         ctx.shadowColor = ctx.fillStyle
         ctx.shadowBlur = 20
         ctx.fillRect(p.x, p.y, p.width, p.height)
         ctx.shadowBlur = 0
         ctx.fillStyle = 'black'
         ctx.font = 'bold 10px Arial'
-        ctx.fillText(p.type === 'speed' ? 'S' : p.type === 'multishot' ? 'M' : 'B', p.x + 8, p.y + 17)
+        ctx.fillText(powerUpLetters[p.type], p.x + 8, p.y + 17)
       })
 
       ctx.shadowBlur = 0
@@ -488,6 +576,21 @@ const GameCanvas = () => {
       if (state.activePowerUps.bigship > 0) {
         ctx.fillStyle = 'gold'
         ctx.fillText(`Big Ship: ${Math.ceil(state.activePowerUps.bigship / 1000)}s`, 10, powerUpY)
+        powerUpY += 25
+      }
+      if (state.activePowerUps.shield > 0) {
+        ctx.fillStyle = 'blue'
+        ctx.fillText(`Shield: ${Math.ceil(state.activePowerUps.shield / 1000)}s`, 10, powerUpY)
+        powerUpY += 25
+      }
+      if (state.activePowerUps.rapidfire > 0) {
+        ctx.fillStyle = 'red'
+        ctx.fillText(`Rapid-Fire: ${Math.ceil(state.activePowerUps.rapidfire / 1000)}s`, 10, powerUpY)
+        powerUpY += 25
+      }
+      if (state.activePowerUps.bomb > 0) {
+        ctx.fillStyle = 'purple'
+        ctx.fillText(`BOMB Ready! (SPACE)`, 10, powerUpY)
       }
 
       ctx.restore()
@@ -504,19 +607,19 @@ const GameCanvas = () => {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <h1 className="text-6xl font-bold mb-8 text-cyan-400">Star Scavenger</h1>
         <p className="text-xl mb-4">High Score: {highScore}</p>
-        <button 
+        <button
           onClick={() => setGameStarted(true)}
           className="px-8 py-4 text-2xl bg-cyan-500 rounded hover:bg-cyan-600 transition-colors mb-4"
         >
           Start Game
         </button>
-        <button 
+        <button
           onClick={() => setShowLevelSelect(true)}
           className="px-8 py-4 text-xl bg-gray-700 rounded hover:bg-gray-600 transition-colors"
         >
           Select Level
         </button>
-        
+
         {showLevelSelect && (
           <div className="mt-8 p-6 bg-gray-800 rounded-lg">
             <h2 className="text-2xl font-bold mb-4">Select Level</h2>
@@ -526,11 +629,10 @@ const GameCanvas = () => {
                   key={level.number}
                   onClick={() => selectLevel(level.number)}
                   disabled={level.number > unlockedLevels}
-                  className={`px-6 py-3 rounded ${
-                    level.number <= unlockedLevels 
-                      ? 'bg-cyan-500 hover:bg-cyan-600' 
+                  className={`px-6 py-3 rounded ${level.number <= unlockedLevels
+                      ? 'bg-cyan-500 hover:bg-cyan-600'
                       : 'bg-gray-600 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
                 </button>
@@ -538,13 +640,26 @@ const GameCanvas = () => {
             </div>
           </div>
         )}
-        
+
         <div className="mt-8 text-center max-w-md">
           <h3 className="text-xl font-bold mb-2">Controls</h3>
           <p>WASD - Move</p>
           <p>Mouse - Aim</p>
           <p>Click - Shoot</p>
+          <p>SPACE - Activate Bomb (when collected)</p>
           <p>P - Pause</p>
+        </div>
+
+        <div className="mt-6 text-center max-w-xl">
+          <h3 className="text-xl font-bold mb-3">Power-Ups</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div><span className="text-yellow-400">Speed (S)</span> - Faster bullets</div>
+            <div><span className="text-orange-400">Multi-Shot (M)</span> - Triple shot</div>
+            <div><span className="text-yellow-300">Big Ship (B)</span> - 2x damage</div>
+            <div><span className="text-blue-400">Shield (H)</span> - Absorb 1 hit</div>
+            <div><span className="text-red-400">Rapid-Fire (R)</span> - Faster shooting</div>
+            <div><span className="text-purple-400">Bomb (X)</span> - Destroy all asteroids</div>
+          </div>
         </div>
       </div>
     )
@@ -581,27 +696,27 @@ const GameCanvas = () => {
           Levels
         </button>
       </div>
-      
-      <canvas 
-        ref={canvasRef} 
-        width={800} 
-        height={600} 
+
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
         className="bg-black border-2 border-cyan-700 cursor-crosshair"
       />
-      
+
       {isPaused && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
           <h2 className="text-5xl font-bold">Paused</h2>
           <p className="text-xl mt-4">Press P or click Resume</p>
         </div>
       )}
-      
+
       {levelComplete && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
           <h2 className="text-5xl font-bold text-cyan-400">Level Complete!</h2>
           <p className="text-2xl mt-4">Score: {score}</p>
           <div className="flex gap-4 mt-8">
-            <button 
+            <button
               onClick={() => {
                 gameStateRef.current.currentLevel += 1
                 setCurrentLevel(gameStateRef.current.currentLevel)
@@ -612,7 +727,7 @@ const GameCanvas = () => {
             >
               Next Level
             </button>
-            <button 
+            <button
               onClick={() => {
                 setGameStarted(false)
                 setLevelComplete(false)
@@ -624,14 +739,14 @@ const GameCanvas = () => {
           </div>
         </div>
       )}
-      
+
       {gameOver && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
           <h2 className="text-5xl font-bold">{currentLevel === 5 && score >= LEVELS[4].targetScore ? 'You Win!' : 'Game Over'}</h2>
           <p className="text-2xl mt-4">Final Score: {score}</p>
           {score > highScore && <p className="text-xl mt-2 text-yellow-400">New High Score!</p>}
           <div className="flex gap-4 mt-8">
-            <button 
+            <button
               onClick={() => {
                 analytics.retry()
                 resetGame()
@@ -640,7 +755,7 @@ const GameCanvas = () => {
             >
               Replay Level
             </button>
-            <button 
+            <button
               onClick={() => {
                 setGameStarted(false)
                 setGameOver(false)
@@ -652,7 +767,7 @@ const GameCanvas = () => {
           </div>
         </div>
       )}
-      
+
       {showLevelSelect && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-90 flex flex-col justify-center items-center text-white">
           <h2 className="text-3xl font-bold mb-6">Select Level</h2>
@@ -662,17 +777,16 @@ const GameCanvas = () => {
                 key={level.number}
                 onClick={() => selectLevel(level.number)}
                 disabled={level.number > unlockedLevels}
-                className={`px-6 py-3 rounded ${
-                  level.number <= unlockedLevels 
-                    ? 'bg-cyan-500 hover:bg-cyan-600' 
+                className={`px-6 py-3 rounded ${level.number <= unlockedLevels
+                    ? 'bg-cyan-500 hover:bg-cyan-600'
                     : 'bg-gray-600 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
               </button>
             ))}
           </div>
-          <button 
+          <button
             onClick={() => setShowLevelSelect(false)}
             className="mt-6 px-6 py-3 bg-gray-700 rounded hover:bg-gray-600"
           >

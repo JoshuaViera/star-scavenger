@@ -12,6 +12,9 @@ interface GameSession {
     speed: number
     multishot: number
     bigship: number
+    shield: number
+    rapidfire: number
+    bomb: number
   }
 }
 
@@ -26,7 +29,6 @@ interface AnalyticsData {
 class Analytics {
   private currentSession: GameSession | null = null
 
-  // Initialize or load existing analytics data
   private getAnalyticsData(): AnalyticsData {
     if (typeof window === 'undefined') return this.getDefaultData()
     
@@ -55,7 +57,6 @@ class Analytics {
     localStorage.setItem('starScavengerAnalytics', JSON.stringify(data))
   }
 
-  // Start a new game session
   startSession(level: number) {
     this.currentSession = {
       sessionId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -67,7 +68,10 @@ class Analytics {
       powerUpsCollected: {
         speed: 0,
         multishot: 0,
-        bigship: 0
+        bigship: 0,
+        shield: 0,
+        rapidfire: 0,
+        bomb: 0
       }
     }
 
@@ -76,13 +80,11 @@ class Analytics {
     this.saveAnalyticsData(data)
   }
 
-  // Track power-up collection
-  collectPowerUp(type: 'speed' | 'multishot' | 'bigship') {
+  collectPowerUp(type: 'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb') {
     if (!this.currentSession) return
     this.currentSession.powerUpsCollected[type]++
   }
 
-  // Update highest level reached
   updateLevel(level: number) {
     if (!this.currentSession) return
     if (level > this.currentSession.highestLevel) {
@@ -90,7 +92,6 @@ class Analytics {
     }
   }
 
-  // Track game over event
   gameOver(finalScore: number) {
     if (!this.currentSession) return
     
@@ -103,7 +104,6 @@ class Analytics {
     data.sessions.push({ ...this.currentSession })
     data.lastUpdated = Date.now()
     
-    // Keep only last 100 sessions to avoid localStorage bloat
     if (data.sessions.length > 100) {
       data.sessions = data.sessions.slice(-100)
     }
@@ -111,14 +111,12 @@ class Analytics {
     this.saveAnalyticsData(data)
   }
 
-  // Track retry (play again)
   retry() {
     const data = this.getAnalyticsData()
     data.totalRetries++
     this.saveAnalyticsData(data)
   }
 
-  // Get analytics summary for display
   getAnalyticsSummary() {
     const data = this.getAnalyticsData()
     
@@ -129,7 +127,7 @@ class Analytics {
         avgSessionLength: 0,
         avgScore: 0,
         levelDistribution: {},
-        powerUpUsage: { speed: 0, multishot: 0, bigship: 0 }
+        powerUpUsage: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 }
       }
     }
 
@@ -148,8 +146,11 @@ class Analytics {
     const powerUpUsage = data.sessions.reduce((acc, s) => ({
       speed: acc.speed + s.powerUpsCollected.speed,
       multishot: acc.multishot + s.powerUpsCollected.multishot,
-      bigship: acc.bigship + s.powerUpsCollected.bigship
-    }), { speed: 0, multishot: 0, bigship: 0 })
+      bigship: acc.bigship + s.powerUpsCollected.bigship,
+      shield: acc.shield + s.powerUpsCollected.shield,
+      rapidfire: acc.rapidfire + s.powerUpsCollected.rapidfire,
+      bomb: acc.bomb + s.powerUpsCollected.bomb
+    }), { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 })
 
     const retryRate = data.totalGameOvers > 0 
       ? (data.totalRetries / data.totalGameOvers) * 100 
@@ -158,14 +159,13 @@ class Analytics {
     return {
       totalPlays: data.totalPlays,
       retryRate: Math.round(retryRate),
-      avgSessionLength: Math.round(totalSessionTime / data.sessions.length / 1000), // in seconds
+      avgSessionLength: Math.round(totalSessionTime / data.sessions.length / 1000),
       avgScore: Math.round(totalScore / data.sessions.length),
       levelDistribution,
       powerUpUsage
     }
   }
 
-  // Export data as JSON for external analysis
   exportData() {
     const data = this.getAnalyticsData()
     const dataStr = JSON.stringify(data, null, 2)
