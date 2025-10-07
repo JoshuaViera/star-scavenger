@@ -571,6 +571,7 @@ const GameCanvas = () => {
             if (state.boss.health <= 0) {
               state.score += 1000
               soundManager.explosion()
+              analytics.bossDefeated()
               particleSystemRef.current.createExplosion(
                 state.boss.x + state.boss.width / 2,
                 state.boss.y + state.boss.height / 2,
@@ -877,6 +878,7 @@ const GameCanvas = () => {
 
         state.boss = createBoss(bossTypes[state.currentLevel - 1])
         state.bossActive = true
+        analytics.bossFight()
         state.asteroids = []
         state.enemies = []
         state.enemyBullets = []

@@ -100,6 +100,30 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Boss Fight Stats */}
+        <div className="bg-gray-800 p-6 rounded-lg mb-8">
+          <h3 className="text-2xl font-bold text-white mb-4">Boss Battle Statistics</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-red-900 bg-opacity-30 p-6 rounded border-2 border-red-600">
+              <div className="text-red-400 font-bold text-lg mb-2">Bosses Fought</div>
+              <div className="text-4xl font-bold text-white">{summary.totalBossesFought}</div>
+              <div className="text-sm text-gray-400 mt-1">encounters</div>
+            </div>
+            <div className="bg-green-900 bg-opacity-30 p-6 rounded border-2 border-green-600">
+              <div className="text-green-400 font-bold text-lg mb-2">Bosses Defeated</div>
+              <div className="text-4xl font-bold text-white">{summary.totalBossesDefeated}</div>
+              <div className="text-sm text-gray-400 mt-1">victories</div>
+            </div>
+            <div className="bg-blue-900 bg-opacity-30 p-6 rounded border-2 border-blue-600">
+              <div className="text-blue-400 font-bold text-lg mb-2">Win Rate</div>
+              <div className="text-4xl font-bold text-white">{summary.bossWinRate}%</div>
+              <div className="text-sm text-gray-400 mt-1">
+                {summary.bossWinRate > 50 ? 'Strong!' : summary.bossWinRate > 25 ? 'Fair' : 'Challenging'}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Level Distribution */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Highest Level Reached</h3>
@@ -127,23 +151,23 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Power-Up Usage - ALL 6 POWER-UPS */}
+        {/* Power-Up Usage */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Power-Up Collection</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-yellow-900 bg-opacity-30 p-6 rounded border-2 border-yellow-600">
               <div className="text-yellow-400 font-bold text-lg mb-2">Speed Boost</div>
-              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.speed}</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.speed || 0}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
             <div className="bg-orange-900 bg-opacity-30 p-6 rounded border-2 border-orange-600">
               <div className="text-orange-400 font-bold text-lg mb-2">Multi-Shot</div>
-              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.multishot}</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.multishot || 0}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
             <div className="bg-yellow-700 bg-opacity-30 p-6 rounded border-2 border-yellow-500">
               <div className="text-yellow-300 font-bold text-lg mb-2">Big Ship</div>
-              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bigship}</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bigship || 0}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
             <div className="bg-blue-900 bg-opacity-30 p-6 rounded border-2 border-blue-600">
@@ -153,12 +177,12 @@ export default function AdminPage() {
             </div>
             <div className="bg-red-900 bg-opacity-30 p-6 rounded border-2 border-red-600">
               <div className="text-red-400 font-bold text-lg mb-2">Rapid-Fire</div>
-              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.rapidfire}</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.rapidfire || 0}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
             <div className="bg-purple-900 bg-opacity-30 p-6 rounded border-2 border-purple-600">
               <div className="text-purple-400 font-bold text-lg mb-2">Bomb</div>
-              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bomb}</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bomb || 0}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
           </div>
@@ -179,13 +203,19 @@ export default function AdminPage() {
               {summary.avgSessionLength < 120 && ' - short sessions may indicate difficulty spikes.'}
             </div>
             <div className="p-4 bg-gray-900 rounded">
+              <strong className="text-white">Boss Battles:</strong> {summary.bossWinRate}% win rate
+              {summary.bossWinRate < 30 && ' - Bosses may be too difficult'}
+              {summary.bossWinRate > 70 && ' - Bosses may be too easy'}
+              {summary.bossWinRate >= 30 && summary.bossWinRate <= 70 && ' - Well balanced difficulty'}
+            </div>
+            <div className="p-4 bg-gray-900 rounded">
               <strong className="text-white">Power-Up Balance:</strong> Most collected: {
                 Object.entries(summary.powerUpUsage)
-                  .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none'
+                  .sort(([,a], [,b]) => (b || 0) - (a || 0))[0]?.[0] || 'none'
               }, Least collected: {
                 Object.entries(summary.powerUpUsage)
-                  .filter(([,count]) => count > 0)
-                  .sort(([,a], [,b]) => a - b)[0]?.[0] || 'none'
+                  .filter(([,count]) => (count || 0) > 0)
+                  .sort(([,a], [,b]) => (a || 0) - (b || 0))[0]?.[0] || 'none'
               }
             </div>
           </div>

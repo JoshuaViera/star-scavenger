@@ -16,6 +16,8 @@ interface GameSession {
     rapidfire: number
     bomb: number
   }
+  bossesDefeated: number
+  bossesFought: number
 }
 
 interface AnalyticsData {
@@ -23,6 +25,8 @@ interface AnalyticsData {
   totalPlays: number
   totalRetries: number
   totalGameOvers: number
+  totalBossesDefeated: number
+  totalBossesFought: number
   lastUpdated: number
 }
 
@@ -48,6 +52,8 @@ class Analytics {
       totalPlays: 0,
       totalRetries: 0,
       totalGameOvers: 0,
+      totalBossesDefeated: 0,
+      totalBossesFought: 0,
       lastUpdated: Date.now()
     }
   }
@@ -72,7 +78,9 @@ class Analytics {
         shield: 0,
         rapidfire: 0,
         bomb: 0
-      }
+      },
+      bossesDefeated: 0,
+      bossesFought: 0
     }
 
     const data = this.getAnalyticsData()
@@ -90,6 +98,24 @@ class Analytics {
     if (level > this.currentSession.highestLevel) {
       this.currentSession.highestLevel = level
     }
+  }
+
+  bossFight() {
+    if (!this.currentSession) return
+    this.currentSession.bossesFought++
+    
+    const data = this.getAnalyticsData()
+    data.totalBossesFought++
+    this.saveAnalyticsData(data)
+  }
+
+  bossDefeated() {
+    if (!this.currentSession) return
+    this.currentSession.bossesDefeated++
+    
+    const data = this.getAnalyticsData()
+    data.totalBossesDefeated++
+    this.saveAnalyticsData(data)
   }
 
   gameOver(finalScore: number) {
@@ -134,7 +160,10 @@ class Analytics {
           shield: 0, 
           rapidfire: 0, 
           bomb: 0 
-        }
+        },
+        totalBossesDefeated: 0,
+        totalBossesFought: 0,
+        bossWinRate: 0
       }
     }
 
@@ -166,6 +195,10 @@ class Analytics {
       ? (data.totalRetries / data.totalGameOvers) * 100 
       : 0
 
+    const bossWinRate = data.totalBossesFought > 0
+      ? (data.totalBossesDefeated / data.totalBossesFought) * 100
+      : 0
+
     return {
       totalPlays: data.totalPlays,
       retryRate: Math.round(retryRate),
@@ -179,7 +212,10 @@ class Analytics {
         shield: powerUpUsage.shield || 0,
         rapidfire: powerUpUsage.rapidfire || 0,
         bomb: powerUpUsage.bomb || 0
-      }
+      },
+      totalBossesDefeated: data.totalBossesDefeated || 0,
+      totalBossesFought: data.totalBossesFought || 0,
+      bossWinRate: Math.round(bossWinRate)
     }
   }
 
