@@ -77,6 +77,7 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-gray-800 p-6 rounded-lg">
             <div className="text-gray-400 text-sm mb-2">Total Plays</div>
@@ -99,6 +100,7 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Level Distribution */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Highest Level Reached</h3>
           <div className="space-y-3">
@@ -125,9 +127,10 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Power-Up Usage - ALL 6 POWER-UPS */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Power-Up Collection</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-yellow-900 bg-opacity-30 p-6 rounded border-2 border-yellow-600">
               <div className="text-yellow-400 font-bold text-lg mb-2">Speed Boost</div>
               <div className="text-4xl font-bold text-white">{summary.powerUpUsage.speed}</div>
@@ -143,9 +146,25 @@ export default function AdminPage() {
               <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bigship}</div>
               <div className="text-sm text-gray-400 mt-1">collected</div>
             </div>
+            <div className="bg-blue-900 bg-opacity-30 p-6 rounded border-2 border-blue-600">
+              <div className="text-blue-400 font-bold text-lg mb-2">Shield</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.shield || 0}</div>
+              <div className="text-sm text-gray-400 mt-1">collected</div>
+            </div>
+            <div className="bg-red-900 bg-opacity-30 p-6 rounded border-2 border-red-600">
+              <div className="text-red-400 font-bold text-lg mb-2">Rapid-Fire</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.rapidfire}</div>
+              <div className="text-sm text-gray-400 mt-1">collected</div>
+            </div>
+            <div className="bg-purple-900 bg-opacity-30 p-6 rounded border-2 border-purple-600">
+              <div className="text-purple-400 font-bold text-lg mb-2">Bomb</div>
+              <div className="text-4xl font-bold text-white">{summary.powerUpUsage.bomb}</div>
+              <div className="text-sm text-gray-400 mt-1">collected</div>
+            </div>
           </div>
         </div>
 
+        {/* Insights */}
         <div className="bg-gray-800 p-6 rounded-lg mb-8">
           <h3 className="text-2xl font-bold text-white mb-4">Key Insights</h3>
           <div className="space-y-3 text-gray-300">
@@ -159,14 +178,20 @@ export default function AdminPage() {
               <strong className="text-white">Session Duration:</strong> Average {summary.avgSessionLength}s per session
               {summary.avgSessionLength < 120 && ' - short sessions may indicate difficulty spikes.'}
             </div>
-            {summary.powerUpUsage.bigship < summary.powerUpUsage.speed / 3 && (
-              <div className="p-4 bg-yellow-900 bg-opacity-20 border border-yellow-600 rounded">
-                <strong className="text-yellow-400">Balance Issue:</strong> Big Ship rarely collected - consider rebalancing.
-              </div>
-            )}
+            <div className="p-4 bg-gray-900 rounded">
+              <strong className="text-white">Power-Up Balance:</strong> Most collected: {
+                Object.entries(summary.powerUpUsage)
+                  .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none'
+              }, Least collected: {
+                Object.entries(summary.powerUpUsage)
+                  .filter(([,count]) => count > 0)
+                  .sort(([,a], [,b]) => a - b)[0]?.[0] || 'none'
+              }
+            </div>
           </div>
         </div>
 
+        {/* Export */}
         <div className="flex justify-center">
           <button
             onClick={() => analytics.exportData()}

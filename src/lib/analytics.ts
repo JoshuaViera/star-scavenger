@@ -127,7 +127,14 @@ class Analytics {
         avgSessionLength: 0,
         avgScore: 0,
         levelDistribution: {},
-        powerUpUsage: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 }
+        powerUpUsage: { 
+          speed: 0, 
+          multishot: 0, 
+          bigship: 0, 
+          shield: 0, 
+          rapidfire: 0, 
+          bomb: 0 
+        }
       }
     }
 
@@ -143,14 +150,17 @@ class Analytics {
       levelDistribution[s.highestLevel] = (levelDistribution[s.highestLevel] || 0) + 1
     })
 
-    const powerUpUsage = data.sessions.reduce((acc, s) => ({
-      speed: acc.speed + s.powerUpsCollected.speed,
-      multishot: acc.multishot + s.powerUpsCollected.multishot,
-      bigship: acc.bigship + s.powerUpsCollected.bigship,
-      shield: acc.shield + s.powerUpsCollected.shield,
-      rapidfire: acc.rapidfire + s.powerUpsCollected.rapidfire,
-      bomb: acc.bomb + s.powerUpsCollected.bomb
-    }), { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 })
+    const powerUpUsage = data.sessions.reduce((acc, s) => {
+      const collected = s.powerUpsCollected || { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 }
+      return {
+        speed: acc.speed + (collected.speed || 0),
+        multishot: acc.multishot + (collected.multishot || 0),
+        bigship: acc.bigship + (collected.bigship || 0),
+        shield: acc.shield + (collected.shield || 0),
+        rapidfire: acc.rapidfire + (collected.rapidfire || 0),
+        bomb: acc.bomb + (collected.bomb || 0)
+      }
+    }, { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 })
 
     const retryRate = data.totalGameOvers > 0 
       ? (data.totalRetries / data.totalGameOvers) * 100 
@@ -162,7 +172,14 @@ class Analytics {
       avgSessionLength: Math.round(totalSessionTime / data.sessions.length / 1000),
       avgScore: Math.round(totalScore / data.sessions.length),
       levelDistribution,
-      powerUpUsage
+      powerUpUsage: {
+        speed: powerUpUsage.speed || 0,
+        multishot: powerUpUsage.multishot || 0,
+        bigship: powerUpUsage.bigship || 0,
+        shield: powerUpUsage.shield || 0,
+        rapidfire: powerUpUsage.rapidfire || 0,
+        bomb: powerUpUsage.bomb || 0
+      }
     }
   }
 
