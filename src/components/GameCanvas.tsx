@@ -395,8 +395,8 @@ const GameCanvas = () => {
           state.enemyBullets.push({
             x: enemyCenterX,
             y: enemyCenterY,
-            width: 4,
-            height: 4,
+            width: 6,           // Changed from 4 to 6
+            height: 6,          // Changed from 4 to 6
             vx: Math.cos(angleToPlayer) * config.bulletSpeed,
             vy: Math.sin(angleToPlayer) * config.bulletSpeed,
             life: 200
@@ -796,7 +796,7 @@ const GameCanvas = () => {
       ctx.shadowColor = 'red'
       ctx.shadowBlur = 10
       state.enemyBullets.forEach(b => {
-        ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
+        ctx.fillRect(b.x - 3, b.y - 3, 6, 6)  // Changed from (b.x - 2, b.y - 2, 4, 4)
       })
       ctx.shadowBlur = 0
 
