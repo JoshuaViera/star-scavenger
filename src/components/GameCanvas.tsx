@@ -13,6 +13,7 @@ import { musicManager } from '@/lib/game/music'
 import { Enemy, EnemyBullet, Boss, BossBullet } from '@/lib/game/types'
 import { createEnemy, ENEMY_TYPES } from '@/lib/game/enemies'
 import { createBoss, BOSS_TYPES, getBossPhase } from '@/lib/game/bosses'
+import { DIFFICULTY_SETTINGS } from '@/lib/game/difficulty'
 
 const PLAYER_SIZE = 20
 const PLAYER_SPEED = 3
@@ -68,7 +69,8 @@ const GameCanvas = () => {
     isPaused: false,
     activePowerUps: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 },
     currentLevel: 1,
-    unlockedLevels: 1
+    unlockedLevels: 1,
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard'
   })
 
   const [score, setScore] = useState(0)
@@ -82,6 +84,8 @@ const GameCanvas = () => {
   const [highScore, setHighScore] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [showDifficultySelect, setShowDifficultySelect] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -90,31 +94,41 @@ const GameCanvas = () => {
   }, [])
 
   const resetGame = () => {
-    gameStateRef.current = {
-      player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
-      bullets: [],
-      asteroids: [],
-      powerUps: [],
-      enemies: [],
-      enemyBullets: [],
-      boss: null,
-      bossBullets: [],
-      bossActive: false,
-      score: 0,
-      gameOver: false,
-      isPaused: false,
-      activePowerUps: { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 },
-      currentLevel: gameStateRef.current.currentLevel,
-      unlockedLevels: gameStateRef.current.unlockedLevels
-    }
-    setScore(0)
-    setGameOver(false)
-    setLevelComplete(false)
-    setGameStarted(true)
-    setIsPaused(false)
-
-    analytics.startSession(gameStateRef.current.currentLevel)
+  const diffSettings = DIFFICULTY_SETTINGS[difficulty]
+  
+  gameStateRef.current = {
+    player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
+    bullets: [],
+    asteroids: [],
+    powerUps: [],
+    enemies: [],
+    enemyBullets: [],
+    boss: null,
+    bossBullets: [],
+    bossActive: false,
+    score: 0,
+    gameOver: false,
+    isPaused: false,
+    activePowerUps: { 
+      speed: 0, 
+      multishot: 0, 
+      bigship: 0, 
+      shield: diffSettings.startWithShield ? 8000 : 0, // Start with shield on easy
+      rapidfire: 0, 
+      bomb: 0 
+    },
+    currentLevel: gameStateRef.current.currentLevel,
+    unlockedLevels: gameStateRef.current.unlockedLevels,
+    difficulty: difficulty
   }
+  setScore(0)
+  setGameOver(false)
+  setLevelComplete(false)
+  setGameStarted(true)
+  setIsPaused(false)
+
+  analytics.startSession(gameStateRef.current.currentLevel)
+}
 
   const selectLevel = (level: number) => {
     gameStateRef.current.currentLevel = level
@@ -270,12 +284,15 @@ const GameCanvas = () => {
   useEffect(() => {
     if (!gameStarted) return
     const level = LEVELS[gameStateRef.current.currentLevel - 1]
+    const diffSettings = DIFFICULTY_SETTINGS[gameStateRef.current.difficulty]
 
     const spawnInterval = setInterval(() => {
-      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused ||
-        gameStateRef.current.asteroids.length >= level.asteroidCount) return
+      const adjustedAsteroidCount = Math.floor(level.asteroidCount * diffSettings.asteroidCountMultiplier)
 
-      const size = randomBetween(20, 50)
+      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused ||
+        gameStateRef.current.asteroids.length >= adjustedAsteroidCount) return
+
+      const size = randomBetween(diffSettings.asteroidSizeMin, diffSettings.asteroidSizeMax)
       const edge = Math.floor(randomBetween(0, 4))
       let x, y
 
@@ -284,10 +301,12 @@ const GameCanvas = () => {
       else if (edge === 2) { y = -size; x = Math.random() * 800 }
       else { y = 600 + size; x = Math.random() * 800 }
 
+      const adjustedSpeed = level.asteroidSpeed * diffSettings.asteroidSpeedMultiplier
+
       gameStateRef.current.asteroids.push({
         x, y, width: size, height: size, size,
-        vx: randomBetween(-level.asteroidSpeed, level.asteroidSpeed),
-        vy: randomBetween(-level.asteroidSpeed, level.asteroidSpeed)
+        vx: randomBetween(-adjustedSpeed, adjustedSpeed),
+        vy: randomBetween(-adjustedSpeed, adjustedSpeed)
       })
     }, level.spawnRate)
 
@@ -341,9 +360,15 @@ const GameCanvas = () => {
         enemyType = rand < 0.2 ? 'scout' : rand < 0.6 ? 'fighter' : 'bomber'
       }
 
-      const player = gameStateRef.current.player
-      const enemy = createEnemy(enemyType, player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2)
-      gameStateRef.current.enemies.push(enemy)
+    const player = gameStateRef.current.player
+const enemy = createEnemy(enemyType, player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2)
+
+// Apply difficulty multipliers
+const diffSettings = DIFFICULTY_SETTINGS[gameStateRef.current.difficulty]
+enemy.vx *= diffSettings.enemySpeedMultiplier
+enemy.vy *= diffSettings.enemySpeedMultiplier
+
+gameStateRef.current.enemies.push(enemy)
     }, 8000) // Spawn enemy every 8 seconds
 
     return () => clearInterval(enemySpawnInterval)
@@ -412,22 +437,26 @@ const GameCanvas = () => {
         enemy.y += enemy.vy
 
         // Shoot at player
-        const now = Date.now()
-        if (now - enemy.lastShot > config.fireRate && distance < 400) {
-          enemy.lastShot = now
+       // Shoot at player
+const now = Date.now()
+const diffSettings = DIFFICULTY_SETTINGS[state.difficulty]
+const adjustedFireRate = config.fireRate * diffSettings.enemyFireRateMultiplier
 
-          state.enemyBullets.push({
-            x: enemyCenterX,
-            y: enemyCenterY,
-            width: 6,           // Changed from 4 to 6
-            height: 6,          // Changed from 4 to 6
-            vx: Math.cos(angleToPlayer) * config.bulletSpeed,
-            vy: Math.sin(angleToPlayer) * config.bulletSpeed,
-            life: 200
-          })
+if (now - enemy.lastShot > adjustedFireRate && distance < 400) {
+  enemy.lastShot = now
 
-          soundManager.shoot()
-        }
+  state.enemyBullets.push({
+    x: enemyCenterX,
+    y: enemyCenterY,
+    width: 6,
+    height: 6,
+    vx: Math.cos(angleToPlayer) * config.bulletSpeed,
+    vy: Math.sin(angleToPlayer) * config.bulletSpeed,
+    life: 200
+  })
+
+  soundManager.shoot()
+}
       })
       // BOSS LOGIC - Add after enemy updates
       if (state.bossActive && state.boss) {
@@ -452,10 +481,11 @@ const GameCanvas = () => {
         boss.rotation += 0.02
 
         // Boss shooting patterns
-        const now = Date.now()
-        const adjustedFireRate = config.fireRate / boss.phase
+const now = Date.now()
+const diffSettings = DIFFICULTY_SETTINGS[state.difficulty]
+const adjustedFireRate = (config.fireRate * diffSettings.bossFireRateMultiplier) / boss.phase
 
-        if (now - boss.lastShot > adjustedFireRate) {
+if (now - boss.lastShot > adjustedFireRate) {
           boss.lastShot = now
 
           const bossCenterX = boss.x + boss.width / 2
@@ -861,347 +891,413 @@ const GameCanvas = () => {
           survivingAsteroids.push(asteroid)
         }
       }
-
-      state.asteroids = survivingAsteroids
+state.asteroids = survivingAsteroids
       state.bullets = state.bullets.filter(b => b.life > 0)
       setScore(state.score)
 
-      if (state.score >= level.targetScore && !levelComplete && !state.bossActive) {
-        // Spawn boss
-        const bossTypes: Array<'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'> = [
-          'asteroid_king',
-          'void_hunter',
-          'meteor_lord',
-          'chaos_titan',
-          'gauntlet_overlord'
-        ]
+      // ALWAYS MAINTAIN MINIMUM ASTEROIDS (unless boss is active)
+      if (!state.bossActive && state.asteroids.length < 3) {
+        const diffSettings = DIFFICULTY_SETTINGS[state.difficulty]
+        const size = randomBetween(diffSettings.asteroidSizeMin, diffSettings.asteroidSizeMax)
+        const edge = Math.floor(randomBetween(0, 4))
+        let x, y
 
-        state.boss = createBoss(bossTypes[state.currentLevel - 1])
-        state.bossActive = true
-        analytics.bossFight()
-        state.asteroids = []
-        state.enemies = []
-        state.enemyBullets = []
+        if (edge === 0) { x = -size; y = Math.random() * 600 }
+        else if (edge === 1) { x = 800 + size; y = Math.random() * 600 }
+        else if (edge === 2) { y = -size; x = Math.random() * 800 }
+        else { y = 600 + size; x = Math.random() * 800 }
+
+        const adjustedSpeed = level.asteroidSpeed * diffSettings.asteroidSpeedMultiplier
+
+        state.asteroids.push({
+          x, y, width: size, height: size, size,
+          vx: randomBetween(-adjustedSpeed, adjustedSpeed),
+          vy: randomBetween(-adjustedSpeed, adjustedSpeed)
+        })
       }
 
-      // Level complete after boss defeated
-      if (state.score >= level.targetScore && !state.bossActive && !state.boss && !levelComplete) {
-        if (state.currentLevel < 5) {
-          setLevelComplete(true)
-          if (state.currentLevel >= state.unlockedLevels) {
-            state.unlockedLevels = state.currentLevel + 1
-            setUnlockedLevels(state.unlockedLevels)
-          }
-          analytics.updateLevel(state.currentLevel + 1)
-        } else {
-          state.gameOver = true
-          setGameOver(true)
-          analytics.gameOver(state.score)
-        }
-      }
+      // Now check for boss spawn...
+    // Spawn boss when target score reached
+// Spawn boss when target score reached
+if (state.score >= level.targetScore && !levelComplete && !state.bossActive) {
+  const bossTypes: Array<'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'> = [
+    'asteroid_king',
+    'void_hunter',
+    'meteor_lord',
+    'chaos_titan',
+    'gauntlet_overlord'
+  ]
 
-      if (state.score > highScore) {
-        setHighScore(state.score)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('starScavengerHighScore', state.score.toString())
-        }
-      }
+  state.boss = createBoss(bossTypes[state.currentLevel - 1])
+  
+  // Apply difficulty to boss
+  const diffSettings = DIFFICULTY_SETTINGS[state.difficulty]
+  state.boss.health = Math.floor(state.boss.health * diffSettings.bossHealthMultiplier)
+  state.boss.maxHealth = state.boss.health
 
-      ctx.fillStyle = 'black'
-      ctx.fillRect(0, 0, 800, 600)
+  state.bossActive = true
+  analytics.bossFight()
+  state.asteroids = []
+  state.enemies = []
+  state.enemyBullets = []
+}
 
-      starfieldRef.current.render(ctx)
-
-      const shakeOffset = screenShakeRef.current.getOffset()
-      ctx.save()
-      ctx.translate(shakeOffset.x, shakeOffset.y)
-
-      const shipSize = state.activePowerUps.bigship > 0 ? 1.5 : 1
-      ctx.save()
-      ctx.translate(state.player.x + PLAYER_SIZE / 2, state.player.y + PLAYER_SIZE / 2)
-      ctx.rotate(state.player.rotation)
-      ctx.scale(shipSize, shipSize)
-      ctx.beginPath()
-      ctx.moveTo(10, 0)
-      ctx.lineTo(-10, -8)
-      ctx.lineTo(-10, 8)
-      ctx.closePath()
-
-      const shipColor = state.activePowerUps.bigship > 0 ? 'gold' :
-        state.activePowerUps.shield > 0 ? 'blue' : 'cyan'
-      ctx.fillStyle = shipColor
-      ctx.shadowColor = shipColor
-      ctx.shadowBlur = 10
-      ctx.fill()
-
-      if (state.activePowerUps.shield > 0) {
-        ctx.beginPath()
-        ctx.arc(0, 0, 20, 0, Math.PI * 2)
-        ctx.strokeStyle = 'rgba(0, 100, 255, 0.5)'
-        ctx.lineWidth = 2
-        ctx.stroke()
-      }
-
-      ctx.restore()
-
-      state.bullets.forEach(b => {
-        const bulletColor = state.activePowerUps.speed > 0 ? 'yellow' :
-          state.activePowerUps.rapidfire > 0 ? 'red' : 'magenta'
-        ctx.fillStyle = bulletColor
-        ctx.shadowColor = bulletColor
-        ctx.shadowBlur = 15
-        ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
-      })
-
-      state.asteroids.forEach(a => {
-        ctx.strokeStyle = 'white'
-        ctx.shadowColor = 'white'
-        ctx.shadowBlur = 5
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.moveTo(a.x + a.size * 0.5, a.y)
-        ctx.lineTo(a.x + a.size, a.y + a.size * 0.3)
-        ctx.lineTo(a.x + a.size * 0.8, a.y + a.size)
-        ctx.lineTo(a.x + a.size * 0.2, a.y + a.size)
-        ctx.lineTo(a.x, a.y + a.size * 0.7)
-        ctx.closePath()
-        ctx.stroke()
-      })
-
-      particleSystemRef.current.render(ctx)
-      // Render enemies
-      state.enemies.forEach(enemy => {
-        const config = ENEMY_TYPES[enemy.type]
-
-        ctx.save()
-        ctx.translate(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2)
-        ctx.rotate(enemy.rotation)
-
-        // Draw enemy ship
-        ctx.fillStyle = config.color
-        ctx.shadowColor = config.color
-        ctx.shadowBlur = 10
-
-        ctx.beginPath()
-        ctx.moveTo(enemy.width / 2, 0)
-        ctx.lineTo(-enemy.width / 2, -enemy.height / 3)
-        ctx.lineTo(-enemy.width / 3, 0)
-        ctx.lineTo(-enemy.width / 2, enemy.height / 3)
-        ctx.closePath()
-        ctx.fill()
-
-        ctx.restore()
-
-        // Draw health bar
-        if (enemy.health < ENEMY_TYPES[enemy.type].health) {
-          const healthPercent = enemy.health / ENEMY_TYPES[enemy.type].health
-          ctx.fillStyle = 'red'
-          ctx.fillRect(enemy.x, enemy.y - 8, enemy.width, 3)
-          ctx.fillStyle = 'lime'
-          ctx.fillRect(enemy.x, enemy.y - 8, enemy.width * healthPercent, 3)
-        }
-      })
-      // Render boss
-      if (state.boss) {
-        const boss = state.boss
-        const config = BOSS_TYPES[boss.type]
-
-        ctx.save()
-        ctx.translate(boss.x + boss.width / 2, boss.y + boss.height / 2)
-        ctx.rotate(boss.rotation)
-
-        // Draw boss
-        ctx.fillStyle = config.color
-        ctx.shadowColor = config.color
-        ctx.shadowBlur = 20
-
-        // Draw hexagon shape
-        ctx.beginPath()
-        for (let i = 0; i < 6; i++) {
-          const angle = (Math.PI / 3) * i
-          const x = Math.cos(angle) * (boss.width / 2)
-          const y = Math.sin(angle) * (boss.height / 2)
-          if (i === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        }
-        ctx.closePath()
-        ctx.fill()
-
-        ctx.restore()
-
-        // Boss health bar at top of screen
-        const healthPercent = boss.health / boss.maxHealth
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-        ctx.fillRect(150, 20, 500, 30)
-        ctx.fillStyle = 'red'
-        ctx.fillRect(155, 25, 490, 20)
-        ctx.fillStyle = 'lime'
-        ctx.fillRect(155, 25, 490 * healthPercent, 20)
-
-        ctx.fillStyle = 'white'
-        ctx.font = 'bold 16px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText(`${config.name} - Phase ${boss.phase}`, 400, 40)
-        ctx.textAlign = 'left'
-      }
-
-      // Render boss bullets
-      state.bossBullets.forEach(b => {
-        const color = b.pattern === 'spiral' ? '#FF00FF' : b.pattern === 'spread' ? '#FF8800' : '#FF0000'
-        ctx.fillStyle = color
-        ctx.shadowColor = color
-        ctx.shadowBlur = 15
-        ctx.fillRect(b.x - 4, b.y - 4, 8, 8)
-      })
-      ctx.shadowBlur = 0
-
-      // Render enemy bullets
-      ctx.fillStyle = 'red'
-      ctx.shadowColor = 'red'
-      ctx.shadowBlur = 10
-      state.enemyBullets.forEach(b => {
-        ctx.fillRect(b.x - 3, b.y - 3, 6, 6)  // Changed from (b.x - 2, b.y - 2, 4, 4)
-      })
-      ctx.shadowBlur = 0
-
-      const powerUpColors = {
-        speed: 'yellow',
-        multishot: 'orange',
-        bigship: 'gold',
-        shield: 'blue',
-        rapidfire: 'red',
-        bomb: 'purple'
-      }
-
-      const powerUpLetters = {
-        speed: 'S',
-        multishot: 'M',
-        bigship: 'B',
-        shield: 'H',
-        rapidfire: 'R',
-        bomb: 'X'
-      }
-
-      state.powerUps.forEach(p => {
-        ctx.fillStyle = powerUpColors[p.type]
-        ctx.shadowColor = ctx.fillStyle
-        ctx.shadowBlur = 20
-        ctx.fillRect(p.x, p.y, p.width, p.height)
-        ctx.shadowBlur = 0
-        ctx.fillStyle = 'black'
-        ctx.font = 'bold 10px Arial'
-        ctx.fillText(powerUpLetters[p.type], p.x + 8, p.y + 17)
-      })
-
-      ctx.shadowBlur = 0
-      ctx.fillStyle = 'white'
-      ctx.font = 'bold 20px Arial'
-      ctx.fillText(`Level ${state.currentLevel}: ${level.name}`, 10, 30)
-      ctx.fillText(`Score: ${state.score} / ${level.targetScore}`, 10, 55)
-      ctx.fillText(`High Score: ${highScore}`, 10, 80)
-
-      let powerUpY = 105
-      if (state.activePowerUps.speed > 0) {
-        ctx.fillStyle = 'yellow'
-        ctx.fillText(`Speed: ${Math.ceil(state.activePowerUps.speed / 1000)}s`, 10, powerUpY)
-        powerUpY += 25
-      }
-      if (state.activePowerUps.multishot > 0) {
-        ctx.fillStyle = 'orange'
-        ctx.fillText(`Multi-Shot: ${Math.ceil(state.activePowerUps.multishot / 1000)}s`, 10, powerUpY)
-        powerUpY += 25
-      }
-      if (state.activePowerUps.bigship > 0) {
-        ctx.fillStyle = 'gold'
-        ctx.fillText(`Big Ship: ${Math.ceil(state.activePowerUps.bigship / 1000)}s`, 10, powerUpY)
-        powerUpY += 25
-      }
-      if (state.activePowerUps.shield > 0) {
-        ctx.fillStyle = 'blue'
-        ctx.fillText(`Shield: ${Math.ceil(state.activePowerUps.shield / 1000)}s`, 10, powerUpY)
-        powerUpY += 25
-      }
-      if (state.activePowerUps.rapidfire > 0) {
-        ctx.fillStyle = 'red'
-        ctx.fillText(`Rapid-Fire: ${Math.ceil(state.activePowerUps.rapidfire / 1000)}s`, 10, powerUpY)
-        powerUpY += 25
-      }
-      if (state.activePowerUps.bomb > 0) {
-        ctx.fillStyle = 'purple'
-        ctx.fillText(`BOMB Ready! (SPACE)`, 10, powerUpY)
-      }
-
-      ctx.restore()
-
-      animationFrameId = requestAnimationFrame(gameLoop)
+// Level complete after boss defeated
+if (state.score >= level.targetScore && !state.bossActive && !state.boss && !levelComplete) {
+  if (state.currentLevel < 5) {
+    setLevelComplete(true)
+    if (state.currentLevel >= state.unlockedLevels) {
+      state.unlockedLevels = state.currentLevel + 1
+      setUnlockedLevels(state.unlockedLevels)
     }
+    analytics.updateLevel(state.currentLevel + 1)
+  } else {
+    state.gameOver = true
+    setGameOver(true)
+    analytics.gameOver(state.score)
+  }
+}
 
-    gameLoop()
-    return () => cancelAnimationFrame(animationFrameId)
-  }, [gameStarted, highScore, levelComplete])
+if (state.score > highScore) {
+  setHighScore(state.score)
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('starScavengerHighScore', state.score.toString())
+  }
+}
 
-  if (!gameStarted) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
-        <h1 className="text-6xl font-bold mb-8 text-cyan-400">Star Scavenger</h1>
-        <p className="text-xl mb-4">High Score: {highScore}</p>
-        <button
-          onClick={() => setGameStarted(true)}
-          className="px-8 py-4 text-2xl bg-cyan-500 rounded hover:bg-cyan-600 transition-colors mb-4"
-        >
-          Start Game
-        </button>
-        <button
-          onClick={() => setShowLevelSelect(true)}
-          className="px-8 py-4 text-xl bg-gray-700 rounded hover:bg-gray-600 transition-colors"
-        >
-          Select Level
-        </button>
+// RENDERING STARTS HERE
+ctx.fillStyle = 'black'
+ctx.fillRect(0, 0, 800, 600)
 
-        {showLevelSelect && (
-          <div className="mt-8 p-6 bg-gray-800 rounded-lg">
-            <h2 className="text-2xl font-bold mb-4">Select Level</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {LEVELS.map(level => (
-                <button
-                  key={level.number}
-                  onClick={() => selectLevel(level.number)}
-                  disabled={level.number > unlockedLevels}
-                  className={`px-6 py-3 rounded ${level.number <= unlockedLevels
-                    ? 'bg-cyan-500 hover:bg-cyan-600'
-                    : 'bg-gray-600 cursor-not-allowed'
-                    }`}
-                >
-                  Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
-                </button>
-              ))}
-            </div>
+starfieldRef.current.render(ctx)
+
+const shakeOffset = screenShakeRef.current.getOffset()
+ctx.save()
+ctx.translate(shakeOffset.x, shakeOffset.y)
+
+// Render player ship
+const shipSize = state.activePowerUps.bigship > 0 ? 1.5 : 1
+ctx.save()
+ctx.translate(state.player.x + PLAYER_SIZE / 2, state.player.y + PLAYER_SIZE / 2)
+ctx.rotate(state.player.rotation)
+ctx.scale(shipSize, shipSize)
+ctx.beginPath()
+ctx.moveTo(10, 0)
+ctx.lineTo(-10, -8)
+ctx.lineTo(-10, 8)
+ctx.closePath()
+
+const shipColor = state.activePowerUps.bigship > 0 ? 'gold' :
+  state.activePowerUps.shield > 0 ? 'blue' : 'cyan'
+ctx.fillStyle = shipColor
+ctx.shadowColor = shipColor
+ctx.shadowBlur = 10
+ctx.fill()
+
+if (state.activePowerUps.shield > 0) {
+  ctx.beginPath()
+  ctx.arc(0, 0, 20, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(0, 100, 255, 0.5)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+}
+
+ctx.restore()
+
+// Render bullets
+state.bullets.forEach(b => {
+  const bulletColor = state.activePowerUps.speed > 0 ? 'yellow' :
+    state.activePowerUps.rapidfire > 0 ? 'red' : 'magenta'
+  ctx.fillStyle = bulletColor
+  ctx.shadowColor = bulletColor
+  ctx.shadowBlur = 15
+  ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
+})
+
+// Render asteroids
+state.asteroids.forEach(a => {
+  ctx.strokeStyle = 'white'
+  ctx.shadowColor = 'white'
+  ctx.shadowBlur = 5
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(a.x + a.size * 0.5, a.y)
+  ctx.lineTo(a.x + a.size, a.y + a.size * 0.3)
+  ctx.lineTo(a.x + a.size * 0.8, a.y + a.size)
+  ctx.lineTo(a.x + a.size * 0.2, a.y + a.size)
+  ctx.lineTo(a.x, a.y + a.size * 0.7)
+  ctx.closePath()
+  ctx.stroke()
+})
+
+particleSystemRef.current.render(ctx)
+
+// Render enemies
+state.enemies.forEach(enemy => {
+  const config = ENEMY_TYPES[enemy.type]
+
+  ctx.save()
+  ctx.translate(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2)
+  ctx.rotate(enemy.rotation)
+
+  ctx.fillStyle = config.color
+  ctx.shadowColor = config.color
+  ctx.shadowBlur = 10
+
+  ctx.beginPath()
+  ctx.moveTo(enemy.width / 2, 0)
+  ctx.lineTo(-enemy.width / 2, -enemy.height / 3)
+  ctx.lineTo(-enemy.width / 3, 0)
+  ctx.lineTo(-enemy.width / 2, enemy.height / 3)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.restore()
+
+  if (enemy.health < ENEMY_TYPES[enemy.type].health) {
+    const healthPercent = enemy.health / ENEMY_TYPES[enemy.type].health
+    ctx.fillStyle = 'red'
+    ctx.fillRect(enemy.x, enemy.y - 8, enemy.width, 3)
+    ctx.fillStyle = 'lime'
+    ctx.fillRect(enemy.x, enemy.y - 8, enemy.width * healthPercent, 3)
+  }
+})
+
+// Render boss
+if (state.boss) {
+  const boss = state.boss
+  const config = BOSS_TYPES[boss.type]
+
+  ctx.save()
+  ctx.translate(boss.x + boss.width / 2, boss.y + boss.height / 2)
+  ctx.rotate(boss.rotation)
+
+  ctx.fillStyle = config.color
+  ctx.shadowColor = config.color
+  ctx.shadowBlur = 20
+
+  ctx.beginPath()
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i
+    const x = Math.cos(angle) * (boss.width / 2)
+    const y = Math.sin(angle) * (boss.height / 2)
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.restore()
+
+  const healthPercent = boss.health / boss.maxHealth
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+  ctx.fillRect(150, 20, 500, 30)
+  ctx.fillStyle = 'red'
+  ctx.fillRect(155, 25, 490, 20)
+  ctx.fillStyle = 'lime'
+  ctx.fillRect(155, 25, 490 * healthPercent, 20)
+
+  ctx.fillStyle = 'white'
+  ctx.font = 'bold 16px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText(`${config.name} - Phase ${boss.phase}`, 400, 40)
+  ctx.textAlign = 'left'
+}
+
+// Render boss bullets
+state.bossBullets.forEach(b => {
+  const color = b.pattern === 'spiral' ? '#FF00FF' : b.pattern === 'spread' ? '#FF8800' : '#FF0000'
+  ctx.fillStyle = color
+  ctx.shadowColor = color
+  ctx.shadowBlur = 15
+  ctx.fillRect(b.x - 4, b.y - 4, 8, 8)
+})
+
+// Render enemy bullets
+ctx.fillStyle = 'red'
+ctx.shadowColor = 'red'
+ctx.shadowBlur = 10
+state.enemyBullets.forEach(b => {
+  ctx.fillRect(b.x - 3, b.y - 3, 6, 6)
+})
+ctx.shadowBlur = 0
+
+// Render power-ups
+const powerUpColors = {
+  speed: 'yellow',
+  multishot: 'orange',
+  bigship: 'gold',
+  shield: 'blue',
+  rapidfire: 'red',
+  bomb: 'purple'
+}
+
+const powerUpLetters = {
+  speed: 'S',
+  multishot: 'M',
+  bigship: 'B',
+  shield: 'H',
+  rapidfire: 'R',
+  bomb: 'X'
+}
+
+state.powerUps.forEach(p => {
+  ctx.fillStyle = powerUpColors[p.type]
+  ctx.shadowColor = ctx.fillStyle
+  ctx.shadowBlur = 20
+  ctx.fillRect(p.x, p.y, p.width, p.height)
+  ctx.shadowBlur = 0
+  ctx.fillStyle = 'black'
+  ctx.font = 'bold 10px Arial'
+  ctx.fillText(powerUpLetters[p.type], p.x + 8, p.y + 17)
+})
+
+// Render HUD
+ctx.shadowBlur = 0
+ctx.fillStyle = 'white'
+ctx.font = 'bold 20px Arial'
+ctx.fillText(`Level ${state.currentLevel}: ${level.name}`, 10, 30)
+ctx.fillText(`Score: ${state.score} / ${level.targetScore}`, 10, 55)
+ctx.fillText(`High Score: ${highScore}`, 10, 80)
+
+// Add difficulty indicator
+const diffSettings = DIFFICULTY_SETTINGS[state.difficulty]
+ctx.fillStyle = diffSettings.color
+ctx.font = 'bold 14px Arial'
+ctx.fillText(`${diffSettings.name} Mode`, 10, 100)
+
+// Power-up timers
+let powerUpY = 125
+ctx.font = 'bold 20px Arial'
+if (state.activePowerUps.speed > 0) {
+  ctx.fillStyle = 'yellow'
+  ctx.fillText(`Speed: ${Math.ceil(state.activePowerUps.speed / 1000)}s`, 10, powerUpY)
+  powerUpY += 25
+}
+if (state.activePowerUps.multishot > 0) {
+  ctx.fillStyle = 'orange'
+  ctx.fillText(`Multi-Shot: ${Math.ceil(state.activePowerUps.multishot / 1000)}s`, 10, powerUpY)
+  powerUpY += 25
+}
+if (state.activePowerUps.bigship > 0) {
+  ctx.fillStyle = 'gold'
+  ctx.fillText(`Big Ship: ${Math.ceil(state.activePowerUps.bigship / 1000)}s`, 10, powerUpY)
+  powerUpY += 25
+}
+if (state.activePowerUps.shield > 0) {
+  ctx.fillStyle = 'blue'
+  ctx.fillText(`Shield: ${Math.ceil(state.activePowerUps.shield / 1000)}s`, 10, powerUpY)
+  powerUpY += 25
+}
+if (state.activePowerUps.rapidfire > 0) {
+  ctx.fillStyle = 'red'
+  ctx.fillText(`Rapid-Fire: ${Math.ceil(state.activePowerUps.rapidfire / 1000)}s`, 10, powerUpY)
+  powerUpY += 25
+}
+if (state.activePowerUps.bomb > 0) {
+  ctx.fillStyle = 'purple'
+  ctx.fillText(`BOMB Ready! (SPACE)`, 10, powerUpY)
+}
+
+ctx.restore()
+
+animationFrameId = requestAnimationFrame(gameLoop)
+    }
+      gameLoop()
+      return () => cancelAnimationFrame(animationFrameId)
+    }, [gameStarted, highScore, levelComplete])
+
+if (!gameStarted) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
+      <h1 className="text-6xl font-bold mb-8 text-cyan-400">Star Scavenger</h1>
+      <p className="text-xl mb-4">High Score: {highScore}</p>
+      
+      {/* Difficulty Selector */}
+      <div className="mb-6 flex gap-3">
+        {(['easy', 'medium', 'hard'] as const).map((diff) => (
+          <button
+            key={diff}
+            onClick={() => {
+              setDifficulty(diff)
+              gameStateRef.current.difficulty = diff
+            }}
+            className={`px-6 py-3 rounded-lg font-bold transition-all ${
+              difficulty === diff
+                ? 'ring-2 ring-offset-2 ring-offset-gray-900'
+                : 'opacity-50 hover:opacity-75'
+            }`}
+            style={{
+              backgroundColor: DIFFICULTY_SETTINGS[diff].color,
+              color: '#000',
+              ...(difficulty === diff ? { ringColor: DIFFICULTY_SETTINGS[diff].color } : {})
+            }}
+          >
+            {DIFFICULTY_SETTINGS[diff].name}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-gray-400 mb-8 max-w-md text-center">
+        {DIFFICULTY_SETTINGS[difficulty].description}
+      </p>
+
+      <button
+        onClick={() => setGameStarted(true)}
+        className="px-8 py-4 text-2xl bg-cyan-500 rounded hover:bg-cyan-600 transition-colors mb-4"
+      >
+        Start Game
+      </button>
+      <button
+        onClick={() => setShowLevelSelect(true)}
+        className="px-8 py-4 text-xl bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+      >
+        Select Level
+      </button>
+
+      {showLevelSelect && (
+        <div className="mt-8 p-6 bg-gray-800 rounded-lg">
+          <h2 className="text-2xl font-bold mb-4">Select Level</h2>
+          <div className="grid grid-cols-1 gap-3">
+            {LEVELS.map(level => (
+              <button
+                key={level.number}
+                onClick={() => selectLevel(level.number)}
+                disabled={level.number > unlockedLevels}
+                className={`px-6 py-3 rounded ${level.number <= unlockedLevels
+                  ? 'bg-cyan-500 hover:bg-cyan-600'
+                  : 'bg-gray-600 cursor-not-allowed'
+                  }`}
+              >
+                Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
+              </button>
+            ))}
           </div>
-        )}
-
-        <div className="mt-8 text-center max-w-md">
-          <h3 className="text-xl font-bold mb-2">Controls</h3>
-          <p>WASD - Move</p>
-          <p>Mouse - Aim</p>
-          <p>Click - Shoot</p>
-          <p>SPACE - Activate Bomb (when collected)</p>
-          <p>P - Pause</p>
         </div>
+      )}
 
-        <div className="mt-6 text-center max-w-xl">
-          <h3 className="text-xl font-bold mb-3">Power-Ups</h3>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div><span className="text-yellow-400">Speed (S)</span> - Faster bullets</div>
-            <div><span className="text-orange-400">Multi-Shot (M)</span> - Triple shot</div>
-            <div><span className="text-yellow-300">Big Ship (B)</span> - 2x damage</div>
-            <div><span className="text-blue-400">Shield (H)</span> - Absorb 1 hit</div>
-            <div><span className="text-red-400">Rapid-Fire (R)</span> - Faster shooting</div>
-            <div><span className="text-purple-400">Bomb (X)</span> - Destroy all asteroids</div>
-          </div>
+      <div className="mt-8 text-center max-w-md">
+        <h3 className="text-xl font-bold mb-2">Controls</h3>
+        <p>WASD - Move</p>
+        <p>Mouse - Aim</p>
+        <p>Click - Shoot</p>
+        <p>SPACE - Activate Bomb (when collected)</p>
+        <p>P - Pause</p>
+      </div>
+
+      <div className="mt-6 text-center max-w-xl">
+        <h3 className="text-xl font-bold mb-3">Power-Ups</h3>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div><span className="text-yellow-400">Speed (S)</span> - Faster bullets</div>
+          <div><span className="text-orange-400">Multi-Shot (M)</span> - Triple shot</div>
+          <div><span className="text-yellow-300">Big Ship (B)</span> - 2x damage</div>
+          <div><span className="text-blue-400">Shield (H)</span> - Absorb 1 hit</div>
+          <div><span className="text-red-400">Rapid-Fire (R)</span> - Faster shooting</div>
+          <div><span className="text-purple-400">Bomb (X)</span> - Destroy all asteroids</div>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-900">
