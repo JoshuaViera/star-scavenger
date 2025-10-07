@@ -10,8 +10,9 @@ import { ParticleSystem } from '@/lib/game/particles'
 import { soundManager } from '@/lib/game/sounds'
 import { Starfield } from '@/lib/game/starfield'
 import { musicManager } from '@/lib/game/music'
-import { Enemy, EnemyBullet } from '@/lib/game/types'
+import { Enemy, EnemyBullet, Boss, BossBullet } from '@/lib/game/types'
 import { createEnemy, ENEMY_TYPES } from '@/lib/game/enemies'
+import { createBoss, BOSS_TYPES, getBossPhase } from '@/lib/game/bosses'
 
 const PLAYER_SIZE = 20
 const PLAYER_SPEED = 3
@@ -59,6 +60,9 @@ const GameCanvas = () => {
     powerUps: [] as PowerUp[],
     enemies: [] as Enemy[],
     enemyBullets: [] as EnemyBullet[],
+    boss: null as Boss | null,
+    bossBullets: [] as BossBullet[],
+    bossActive: false,
     score: 0,
     gameOver: false,
     isPaused: false,
@@ -93,6 +97,9 @@ const GameCanvas = () => {
       powerUps: [],
       enemies: [],
       enemyBullets: [],
+      boss: null,
+      bossBullets: [],
+      bossActive: false,
       score: 0,
       gameOver: false,
       isPaused: false,
@@ -169,6 +176,23 @@ const GameCanvas = () => {
         })
         gameStateRef.current.enemies = []
         gameStateRef.current.enemyBullets = []
+
+        // Damage boss if active
+        if (gameStateRef.current.boss) {
+          gameStateRef.current.boss.health -= 20
+          particleSystemRef.current.createExplosion(
+            gameStateRef.current.boss.x + gameStateRef.current.boss.width / 2,
+            gameStateRef.current.boss.y + gameStateRef.current.boss.height / 2,
+            15,
+            BOSS_TYPES[gameStateRef.current.boss.type].color
+          )
+          if (gameStateRef.current.boss.health <= 0) {
+            gameStateRef.current.score += 1000
+            gameStateRef.current.boss = null
+            gameStateRef.current.bossBullets = []
+            gameStateRef.current.bossActive = false
+          }
+        }
 
         gameStateRef.current.activePowerUps.bomb = 0
         soundManager.explosion()
@@ -405,7 +429,175 @@ const GameCanvas = () => {
           soundManager.shoot()
         }
       })
+      // BOSS LOGIC - Add after enemy updates
+      if (state.bossActive && state.boss) {
+        const boss = state.boss
+        const config = BOSS_TYPES[boss.type]
 
+        // Update boss phase
+        boss.phase = getBossPhase(boss)
+
+        // Boss movement patterns
+        boss.x += boss.vx
+        if (boss.x <= 0 || boss.x >= 800 - boss.width) {
+          boss.vx *= -1
+        }
+
+        // Move down slightly based on phase
+        if (boss.phase > 1 && Math.random() < 0.02) {
+          boss.y += boss.phase * 0.5
+          if (boss.y > 150) boss.y = 150
+        }
+
+        boss.rotation += 0.02
+
+        // Boss shooting patterns
+        const now = Date.now()
+        const adjustedFireRate = config.fireRate / boss.phase
+
+        if (now - boss.lastShot > adjustedFireRate) {
+          boss.lastShot = now
+
+          const bossCenterX = boss.x + boss.width / 2
+          const bossCenterY = boss.y + boss.height / 2
+          const playerCenterX = state.player.x + PLAYER_SIZE / 2
+          const playerCenterY = state.player.y + PLAYER_SIZE / 2
+
+          // Phase 1: Direct shots
+          if (boss.phase === 1) {
+            const angle = Math.atan2(playerCenterY - bossCenterY, playerCenterX - bossCenterX)
+            state.bossBullets.push({
+              x: bossCenterX,
+              y: bossCenterY,
+              width: 8,
+              height: 8,
+              vx: Math.cos(angle) * config.bulletSpeed,
+              vy: Math.sin(angle) * config.bulletSpeed,
+              life: 300,
+              pattern: 'direct'
+            })
+          }
+
+          // Phase 2: Spread shots
+          if (boss.phase === 2) {
+            for (let i = -1; i <= 1; i++) {
+              const angle = Math.atan2(playerCenterY - bossCenterY, playerCenterX - bossCenterX) + (i * 0.3)
+              state.bossBullets.push({
+                x: bossCenterX,
+                y: bossCenterY,
+                width: 8,
+                height: 8,
+                vx: Math.cos(angle) * config.bulletSpeed,
+                vy: Math.sin(angle) * config.bulletSpeed,
+                life: 300,
+                pattern: 'spread'
+              })
+            }
+          }
+
+          // Phase 3+: Spiral pattern
+          if (boss.phase >= 3) {
+            for (let i = 0; i < 8; i++) {
+              const angle = (Math.PI * 2 / 8) * i + boss.rotation
+              state.bossBullets.push({
+                x: bossCenterX,
+                y: bossCenterY,
+                width: 8,
+                height: 8,
+                vx: Math.cos(angle) * config.bulletSpeed * 0.8,
+                vy: Math.sin(angle) * config.bulletSpeed * 0.8,
+                life: 300,
+                pattern: 'spiral'
+              })
+            }
+          }
+
+          soundManager.shoot()
+        }
+      }
+
+      // Update boss bullets
+      state.bossBullets = state.bossBullets
+        .map(b => ({ ...b, x: b.x + b.vx, y: b.y + b.vy, life: b.life - 1 }))
+        .filter(b => b.life > 0 && b.x > -20 && b.x < 820 && b.y > -20 && b.y < 620)
+
+      // Boss bullets hit player
+      for (const bullet of state.bossBullets) {
+        if (checkCollision(bullet, state.player)) {
+          if (state.activePowerUps.shield > 0) {
+            state.activePowerUps.shield = 0
+            bullet.life = 0
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              15,
+              'blue'
+            )
+            soundManager.powerUp()
+            screenShakeRef.current.trigger(8, 200)
+          } else {
+            state.gameOver = true
+            setGameOver(true)
+            soundManager.collision()
+            analytics.gameOver(state.score)
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              20,
+              'cyan'
+            )
+            screenShakeRef.current.trigger(15, 300)
+            bullet.life = 0
+          }
+        }
+      }
+
+      state.bossBullets = state.bossBullets.filter(b => b.life > 0)
+
+      // Player bullets hit boss
+      if (state.boss) {
+        for (const bullet of state.bullets) {
+          if (checkCollision(state.boss, bullet)) {
+            state.boss.health -= (state.activePowerUps.bigship > 0 ? 2 : 1)
+            bullet.life = 0
+
+            particleSystemRef.current.createExplosion(
+              bullet.x,
+              bullet.y,
+              5,
+              BOSS_TYPES[state.boss.type].color
+            )
+
+            if (state.boss.health <= 0) {
+              state.score += 1000
+              soundManager.explosion()
+              particleSystemRef.current.createExplosion(
+                state.boss.x + state.boss.width / 2,
+                state.boss.y + state.boss.height / 2,
+                25,
+                BOSS_TYPES[state.boss.type].color
+              )
+              screenShakeRef.current.trigger(20, 500)
+
+              // Drop power-up
+              state.powerUps.push({
+                x: state.boss.x + state.boss.width / 2 - 12.5,
+                y: state.boss.y + state.boss.height / 2 - 12.5,
+                width: 25,
+                height: 25,
+                type: 'shield',
+                duration: 8000
+              })
+
+              state.boss = null
+              state.bossBullets = []
+              state.bossActive = false
+            }
+
+            break
+          }
+        }
+      }
       // Update enemy bullets
       state.enemyBullets = state.enemyBullets
         .map(b => ({ ...b, x: b.x + b.vx, y: b.y + b.vy, life: b.life - 1 }))
@@ -673,14 +865,31 @@ const GameCanvas = () => {
       state.bullets = state.bullets.filter(b => b.life > 0)
       setScore(state.score)
 
-      if (state.score >= level.targetScore && !levelComplete) {
+      if (state.score >= level.targetScore && !levelComplete && !state.bossActive) {
+        // Spawn boss
+        const bossTypes: Array<'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'> = [
+          'asteroid_king',
+          'void_hunter',
+          'meteor_lord',
+          'chaos_titan',
+          'gauntlet_overlord'
+        ]
+
+        state.boss = createBoss(bossTypes[state.currentLevel - 1])
+        state.bossActive = true
+        state.asteroids = []
+        state.enemies = []
+        state.enemyBullets = []
+      }
+
+      // Level complete after boss defeated
+      if (state.score >= level.targetScore && !state.bossActive && !state.boss && !levelComplete) {
         if (state.currentLevel < 5) {
           setLevelComplete(true)
           if (state.currentLevel >= state.unlockedLevels) {
             state.unlockedLevels = state.currentLevel + 1
             setUnlockedLevels(state.unlockedLevels)
           }
-
           analytics.updateLevel(state.currentLevel + 1)
         } else {
           state.gameOver = true
@@ -790,6 +999,59 @@ const GameCanvas = () => {
           ctx.fillRect(enemy.x, enemy.y - 8, enemy.width * healthPercent, 3)
         }
       })
+      // Render boss
+      if (state.boss) {
+        const boss = state.boss
+        const config = BOSS_TYPES[boss.type]
+
+        ctx.save()
+        ctx.translate(boss.x + boss.width / 2, boss.y + boss.height / 2)
+        ctx.rotate(boss.rotation)
+
+        // Draw boss
+        ctx.fillStyle = config.color
+        ctx.shadowColor = config.color
+        ctx.shadowBlur = 20
+
+        // Draw hexagon shape
+        ctx.beginPath()
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i
+          const x = Math.cos(angle) * (boss.width / 2)
+          const y = Math.sin(angle) * (boss.height / 2)
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        }
+        ctx.closePath()
+        ctx.fill()
+
+        ctx.restore()
+
+        // Boss health bar at top of screen
+        const healthPercent = boss.health / boss.maxHealth
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillRect(150, 20, 500, 30)
+        ctx.fillStyle = 'red'
+        ctx.fillRect(155, 25, 490, 20)
+        ctx.fillStyle = 'lime'
+        ctx.fillRect(155, 25, 490 * healthPercent, 20)
+
+        ctx.fillStyle = 'white'
+        ctx.font = 'bold 16px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText(`${config.name} - Phase ${boss.phase}`, 400, 40)
+        ctx.textAlign = 'left'
+      }
+
+      // Render boss bullets
+      state.bossBullets.forEach(b => {
+        const color = b.pattern === 'spiral' ? '#FF00FF' : b.pattern === 'spread' ? '#FF8800' : '#FF0000'
+        ctx.fillStyle = color
+        ctx.shadowColor = color
+        ctx.shadowBlur = 15
+        ctx.fillRect(b.x - 4, b.y - 4, 8, 8)
+      })
+      ctx.shadowBlur = 0
 
       // Render enemy bullets
       ctx.fillStyle = 'red'

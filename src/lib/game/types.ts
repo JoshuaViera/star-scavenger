@@ -52,3 +52,29 @@ export interface EnemyBullet {
   vy: number
   life: number
 }
+
+export interface Boss {
+  x: number
+  y: number
+  width: number
+  height: number
+  vx: number
+  vy: number
+  health: number
+  maxHealth: number
+  type: 'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'
+  lastShot: number
+  phase: number
+  rotation: number
+}
+
+export interface BossBullet {
+  x: number
+  y: number
+  width: number
+  height: number
+  vx: number
+  vy: number
+  life: number
+  pattern: 'direct' | 'spiral' | 'spread'
+}
