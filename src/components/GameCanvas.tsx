@@ -10,6 +10,8 @@ import { ParticleSystem } from '@/lib/game/particles'
 import { soundManager } from '@/lib/game/sounds'
 import { Starfield } from '@/lib/game/starfield'
 import { musicManager } from '@/lib/game/music'
+import { Enemy, EnemyBullet } from '@/lib/game/types'
+import { createEnemy, ENEMY_TYPES } from '@/lib/game/enemies'
 
 const PLAYER_SIZE = 20
 const PLAYER_SPEED = 3
@@ -55,6 +57,8 @@ const GameCanvas = () => {
     bullets: [] as Bullet[],
     asteroids: [] as Asteroid[],
     powerUps: [] as PowerUp[],
+    enemies: [] as Enemy[],
+    enemyBullets: [] as EnemyBullet[],
     score: 0,
     gameOver: false,
     isPaused: false,
@@ -87,6 +91,8 @@ const GameCanvas = () => {
       bullets: [],
       asteroids: [],
       powerUps: [],
+      enemies: [],
+      enemyBullets: [],
       score: 0,
       gameOver: false,
       isPaused: false,
@@ -138,6 +144,8 @@ const GameCanvas = () => {
 
       if (e.key === ' ' && gameStateRef.current.activePowerUps.bomb > 0) {
         e.preventDefault()
+
+        // Destroy all asteroids
         gameStateRef.current.asteroids.forEach(a => {
           particleSystemRef.current.createExplosion(
             a.x + a.size / 2,
@@ -148,6 +156,20 @@ const GameCanvas = () => {
           gameStateRef.current.score += Math.floor(a.size)
         })
         gameStateRef.current.asteroids = []
+
+        // Destroy all enemies
+        gameStateRef.current.enemies.forEach(enemy => {
+          particleSystemRef.current.createExplosion(
+            enemy.x + enemy.width / 2,
+            enemy.y + enemy.height / 2,
+            12,
+            ENEMY_TYPES[enemy.type].color
+          )
+          gameStateRef.current.score += ENEMY_TYPES[enemy.type].points
+        })
+        gameStateRef.current.enemies = []
+        gameStateRef.current.enemyBullets = []
+
         gameStateRef.current.activePowerUps.bomb = 0
         soundManager.explosion()
         screenShakeRef.current.trigger(20, 400)
@@ -271,6 +293,37 @@ const GameCanvas = () => {
 
     return () => clearInterval(powerUpInterval)
   }, [gameStarted])
+  useEffect(() => {
+    if (!gameStarted) return
+
+    const enemySpawnInterval = setInterval(() => {
+      if (gameStateRef.current.gameOver || gameStateRef.current.isPaused ||
+        gameStateRef.current.enemies.length >= 5) return
+
+      const level = gameStateRef.current.currentLevel
+      let enemyType: 'scout' | 'fighter' | 'bomber'
+
+      // More difficult enemies at higher levels
+      const rand = Math.random()
+      if (level === 1) {
+        enemyType = 'scout'
+      } else if (level === 2) {
+        enemyType = rand < 0.7 ? 'scout' : 'fighter'
+      } else if (level === 3) {
+        enemyType = rand < 0.4 ? 'scout' : rand < 0.8 ? 'fighter' : 'bomber'
+      } else if (level === 4) {
+        enemyType = rand < 0.3 ? 'scout' : rand < 0.7 ? 'fighter' : 'bomber'
+      } else {
+        enemyType = rand < 0.2 ? 'scout' : rand < 0.6 ? 'fighter' : 'bomber'
+      }
+
+      const player = gameStateRef.current.player
+      const enemy = createEnemy(enemyType, player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2)
+      gameStateRef.current.enemies.push(enemy)
+    }, 8000) // Spawn enemy every 8 seconds
+
+    return () => clearInterval(enemySpawnInterval)
+  }, [gameStarted])
 
   useEffect(() => {
     if (!gameStarted) return
@@ -304,6 +357,186 @@ const GameCanvas = () => {
       if (keysRef.current['s']) moveY += 1
       if (keysRef.current['a']) moveX -= 1
       if (keysRef.current['d']) moveX += 1
+
+      // Update enemies
+      state.enemies.forEach(enemy => {
+        const playerCenterX = state.player.x + PLAYER_SIZE / 2
+        const playerCenterY = state.player.y + PLAYER_SIZE / 2
+        const enemyCenterX = enemy.x + enemy.width / 2
+        const enemyCenterY = enemy.y + enemy.height / 2
+
+        // Calculate angle to player
+        const angleToPlayer = Math.atan2(playerCenterY - enemyCenterY, playerCenterX - enemyCenterX)
+        enemy.rotation = angleToPlayer
+
+        // Move toward player with some evasive maneuvers
+        const config = ENEMY_TYPES[enemy.type]
+        const distance = Math.sqrt(Math.pow(playerCenterX - enemyCenterX, 2) + Math.pow(playerCenterY - enemyCenterY, 2))
+
+        if (distance > 200) {
+          // Move toward player
+          enemy.vx = Math.cos(angleToPlayer) * config.speed
+          enemy.vy = Math.sin(angleToPlayer) * config.speed
+        } else {
+          // Circle around player at distance
+          const perpAngle = angleToPlayer + Math.PI / 2
+          enemy.vx = Math.cos(perpAngle) * config.speed * 0.5 + Math.cos(angleToPlayer) * config.speed * 0.3
+          enemy.vy = Math.sin(perpAngle) * config.speed * 0.5 + Math.sin(angleToPlayer) * config.speed * 0.3
+        }
+
+        enemy.x += enemy.vx
+        enemy.y += enemy.vy
+
+        // Shoot at player
+        const now = Date.now()
+        if (now - enemy.lastShot > config.fireRate && distance < 400) {
+          enemy.lastShot = now
+
+          state.enemyBullets.push({
+            x: enemyCenterX,
+            y: enemyCenterY,
+            width: 4,
+            height: 4,
+            vx: Math.cos(angleToPlayer) * config.bulletSpeed,
+            vy: Math.sin(angleToPlayer) * config.bulletSpeed,
+            life: 200
+          })
+
+          soundManager.shoot()
+        }
+      })
+
+      // Update enemy bullets
+      state.enemyBullets = state.enemyBullets
+        .map(b => ({ ...b, x: b.x + b.vx, y: b.y + b.vy, life: b.life - 1 }))
+        .filter(b => b.life > 0 && b.x > -10 && b.x < 810 && b.y > -10 && b.y < 610)
+
+      // Enemy bullets hit player
+      for (const bullet of state.enemyBullets) {
+        if (checkCollision(bullet, state.player)) {
+          if (state.activePowerUps.shield > 0) {
+            state.activePowerUps.shield = 0
+            bullet.life = 0
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              15,
+              'blue'
+            )
+            soundManager.powerUp()
+            screenShakeRef.current.trigger(8, 200)
+          } else {
+            state.gameOver = true
+            setGameOver(true)
+
+            soundManager.collision()
+            analytics.gameOver(state.score)
+
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              20,
+              'cyan'
+            )
+
+            screenShakeRef.current.trigger(15, 300)
+            bullet.life = 0
+          }
+        }
+      }
+
+      state.enemyBullets = state.enemyBullets.filter(b => b.life > 0)
+
+      // Player bullets hit enemies
+      const survivingEnemies = []
+      for (const enemy of state.enemies) {
+        let destroyed = false
+
+        for (const bullet of state.bullets) {
+          if (checkCollision(enemy, bullet)) {
+            enemy.health -= (state.activePowerUps.bigship > 0 ? 2 : 1)
+            bullet.life = 0
+
+            particleSystemRef.current.createExplosion(
+              enemy.x + enemy.width / 2,
+              enemy.y + enemy.height / 2,
+              5,
+              ENEMY_TYPES[enemy.type].color
+            )
+
+            if (enemy.health <= 0) {
+              destroyed = true
+              state.score += ENEMY_TYPES[enemy.type].points
+
+              soundManager.explosion()
+
+              particleSystemRef.current.createExplosion(
+                enemy.x + enemy.width / 2,
+                enemy.y + enemy.height / 2,
+                15,
+                ENEMY_TYPES[enemy.type].color
+              )
+
+              screenShakeRef.current.trigger(5, 150)
+
+              // 30% chance to drop power-up
+              if (Math.random() < 0.3) {
+                const types: Array<'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb'> =
+                  ['speed', 'multishot', 'bigship', 'shield', 'rapidfire', 'bomb']
+                const type = types[Math.floor(Math.random() * types.length)]
+
+                state.powerUps.push({
+                  x: enemy.x + enemy.width / 2 - 12.5,
+                  y: enemy.y + enemy.height / 2 - 12.5,
+                  width: 25,
+                  height: 25,
+                  type,
+                  duration: type === 'bomb' ? 1 : 8000
+                })
+              }
+            }
+
+            break
+          }
+        }
+
+        // Check collision with player
+        if (!destroyed && checkCollision(enemy, state.player)) {
+          if (state.activePowerUps.shield > 0) {
+            state.activePowerUps.shield = 0
+            destroyed = true
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              15,
+              'blue'
+            )
+            soundManager.powerUp()
+            screenShakeRef.current.trigger(8, 200)
+          } else {
+            state.gameOver = true
+            setGameOver(true)
+
+            soundManager.collision()
+            analytics.gameOver(state.score)
+
+            particleSystemRef.current.createExplosion(
+              state.player.x + PLAYER_SIZE / 2,
+              state.player.y + PLAYER_SIZE / 2,
+              20,
+              'cyan'
+            )
+
+            screenShakeRef.current.trigger(15, 300)
+          }
+        }
+
+        if (!destroyed) {
+          survivingEnemies.push(enemy)
+        }
+      }
+
+      state.enemies = survivingEnemies
 
       const playerSpeed = state.activePowerUps.bigship > 0 ? PLAYER_SPEED * 0.8 : PLAYER_SPEED
       const mag = Math.sqrt(moveX * moveX + moveY * moveY)
@@ -525,6 +758,47 @@ const GameCanvas = () => {
       })
 
       particleSystemRef.current.render(ctx)
+      // Render enemies
+      state.enemies.forEach(enemy => {
+        const config = ENEMY_TYPES[enemy.type]
+
+        ctx.save()
+        ctx.translate(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2)
+        ctx.rotate(enemy.rotation)
+
+        // Draw enemy ship
+        ctx.fillStyle = config.color
+        ctx.shadowColor = config.color
+        ctx.shadowBlur = 10
+
+        ctx.beginPath()
+        ctx.moveTo(enemy.width / 2, 0)
+        ctx.lineTo(-enemy.width / 2, -enemy.height / 3)
+        ctx.lineTo(-enemy.width / 3, 0)
+        ctx.lineTo(-enemy.width / 2, enemy.height / 3)
+        ctx.closePath()
+        ctx.fill()
+
+        ctx.restore()
+
+        // Draw health bar
+        if (enemy.health < ENEMY_TYPES[enemy.type].health) {
+          const healthPercent = enemy.health / ENEMY_TYPES[enemy.type].health
+          ctx.fillStyle = 'red'
+          ctx.fillRect(enemy.x, enemy.y - 8, enemy.width, 3)
+          ctx.fillStyle = 'lime'
+          ctx.fillRect(enemy.x, enemy.y - 8, enemy.width * healthPercent, 3)
+        }
+      })
+
+      // Render enemy bullets
+      ctx.fillStyle = 'red'
+      ctx.shadowColor = 'red'
+      ctx.shadowBlur = 10
+      state.enemyBullets.forEach(b => {
+        ctx.fillRect(b.x - 2, b.y - 2, 4, 4)
+      })
+      ctx.shadowBlur = 0
 
       const powerUpColors = {
         speed: 'yellow',
@@ -630,8 +904,8 @@ const GameCanvas = () => {
                   onClick={() => selectLevel(level.number)}
                   disabled={level.number > unlockedLevels}
                   className={`px-6 py-3 rounded ${level.number <= unlockedLevels
-                      ? 'bg-cyan-500 hover:bg-cyan-600'
-                      : 'bg-gray-600 cursor-not-allowed'
+                    ? 'bg-cyan-500 hover:bg-cyan-600'
+                    : 'bg-gray-600 cursor-not-allowed'
                     }`}
                 >
                   Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
@@ -778,8 +1052,8 @@ const GameCanvas = () => {
                 onClick={() => selectLevel(level.number)}
                 disabled={level.number > unlockedLevels}
                 className={`px-6 py-3 rounded ${level.number <= unlockedLevels
-                    ? 'bg-cyan-500 hover:bg-cyan-600'
-                    : 'bg-gray-600 cursor-not-allowed'
+                  ? 'bg-cyan-500 hover:bg-cyan-600'
+                  : 'bg-gray-600 cursor-not-allowed'
                   }`}
               >
                 Level {level.number}: {level.name} {level.number > unlockedLevels && '🔒'}
