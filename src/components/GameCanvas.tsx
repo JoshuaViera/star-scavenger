@@ -5,7 +5,8 @@ import { useEffect } from 'react'
 import { musicManager } from '@/lib/game/music'
 import { soundManager } from '@/lib/game/sounds'
 import { analytics } from '@/lib/analytics'
-import GameMenu from './game/GameMenu'
+import { gameState } from '@/lib/game-state'
+import { GameMenu } from './game/GameMenu'
 import { useGameState } from '@/hooks/game/useGameState'
 import { useGameSystems } from '@/hooks/game/useGameSystems'
 import { useInputHandlers } from '@/hooks/game/useInputHandlers'
@@ -102,7 +103,7 @@ const GameCanvas = () => {
     setHighScore
   )
 
-  // Music management
+  // Music management & analytics
   useEffect(() => {
     if (gameStarted && !gameOver) {
       analytics.startSession(gameStateRef.current.currentLevel)
@@ -119,22 +120,83 @@ const GameCanvas = () => {
     return () => musicManager.stop()
   }, [gameStarted, gameOver, isPaused])
 
+  // Auto-save game state every 30 seconds
+  useEffect(() => {
+    if (!gameStarted || gameOver || isPaused) return
+
+    const saveInterval = setInterval(async () => {
+      await gameState.saveGame({
+        level: currentLevel,
+        score: score,
+        health: gameStateRef.current.player.health,
+        game_state: {
+          player: gameStateRef.current.player,
+          bullets: gameStateRef.current.bullets,
+          asteroids: gameStateRef.current.asteroids,
+          enemies: gameStateRef.current.enemies,
+          powerUps: gameStateRef.current.powerUps,
+          boss: gameStateRef.current.boss,
+          activePowerUps: gameStateRef.current.activePowerUps
+        }
+      })
+    }, 30000) // Save every 30 seconds
+
+    return () => clearInterval(saveInterval)
+  }, [gameStarted, gameOver, isPaused, currentLevel, score, gameStateRef])
+
+  // Handle level complete - update Supabase
+  useEffect(() => {
+    if (levelComplete) {
+      const nextLevel = currentLevel + 1
+      if (nextLevel <= 5) {
+        gameState.unlockLevel(nextLevel)
+      }
+      gameState.updateHighScore(score)
+    }
+  }, [levelComplete, currentLevel, score])
+
+  // Handle game over - submit to leaderboard
+  useEffect(() => {
+    if (gameOver) {
+      analytics.gameOver(score, currentLevel, difficulty)
+      gameState.updateHighScore(score)
+      gameState.deleteSavedGame() // Clear saved game on game over
+    }
+  }, [gameOver, score, currentLevel, difficulty])
+
   // Main menu
   if (!gameStarted) {
     return (
       <GameMenu
         highScore={highScore}
-        difficulty={difficulty}
-        setDifficulty={(diff: 'easy' | 'medium' | 'hard') => {
-          setDifficulty(diff)
-          gameStateRef.current.difficulty = diff
+        onStartGame={(level: number, selectedDifficulty: string) => {
+          setCurrentLevel(level)
+          setDifficulty(selectedDifficulty as 'easy' | 'medium' | 'hard')
+          setGameStarted(true)
+          setGameOver(false)
+          setLevelComplete(false)
+          resetGame()
         }}
-        onStartGame={() => setGameStarted(true)}
-        showLevelSelect={showLevelSelect}
-        setShowLevelSelect={setShowLevelSelect}
-        levels={LEVELS}
-        unlockedLevels={unlockedLevels}
-        onSelectLevel={selectLevel}
+        onResumeGame={(savedState: any) => {
+          // Restore full game state
+          setCurrentLevel(savedState.level)
+          setScore(savedState.score)
+          
+          // Restore all game objects
+          gameStateRef.current.player = savedState.game_state.player
+          gameStateRef.current.bullets = savedState.game_state.bullets || []
+          gameStateRef.current.asteroids = savedState.game_state.asteroids || []
+          gameStateRef.current.enemies = savedState.game_state.enemies || []
+          gameStateRef.current.powerUps = savedState.game_state.powerUps || []
+          gameStateRef.current.boss = savedState.game_state.boss || null
+          gameStateRef.current.activePowerUps = savedState.game_state.activePowerUps || {
+            speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0
+          }
+          
+          setGameStarted(true)
+          setGameOver(false)
+          setLevelComplete(false)
+        }}
       />
     )
   }

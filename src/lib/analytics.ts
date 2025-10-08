@@ -1,4 +1,5 @@
 // src/lib/analytics.ts
+import { createClient } from './supabase/client'
 
 interface GameSession {
   sessionId: string
@@ -32,6 +33,7 @@ interface AnalyticsData {
 
 class Analytics {
   private currentSession: GameSession | null = null
+  private supabase = createClient()
 
   private getAnalyticsData(): AnalyticsData {
     if (typeof window === 'undefined') return this.getDefaultData()
@@ -118,7 +120,7 @@ class Analytics {
     this.saveAnalyticsData(data)
   }
 
-  gameOver(finalScore: number) {
+  async gameOver(finalScore: number, level: number, difficulty: string) {
     if (!this.currentSession) return
     
     this.currentSession.gameOvers++
@@ -135,6 +137,41 @@ class Analytics {
     }
     
     this.saveAnalyticsData(data)
+
+    // Submit to Supabase leaderboard
+    await this.submitToLeaderboard(finalScore, level, difficulty)
+  }
+
+  async submitToLeaderboard(score: number, level: number, difficulty: string) {
+    try {
+      const { data: { user } } = await this.supabase.auth.getUser()
+      
+      if (!user) return // Only logged-in users can submit scores
+
+      const { data: profile } = await this.supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile) return
+
+      const sessionDuration = this.currentSession?.endTime && this.currentSession?.startTime
+        ? Math.round((this.currentSession.endTime - this.currentSession.startTime) / 1000)
+        : 0
+
+      await this.supabase.from('leaderboard').insert({
+        user_id: user.id,
+        username: profile.username,
+        score,
+        level_reached: level,
+        difficulty,
+        session_duration: sessionDuration,
+        bosses_defeated: this.currentSession?.bossesDefeated || 0
+      })
+    } catch (error) {
+      console.error('Failed to submit to leaderboard:', error)
+    }
   }
 
   retry() {
@@ -205,14 +242,7 @@ class Analytics {
       avgSessionLength: Math.round(totalSessionTime / data.sessions.length / 1000),
       avgScore: Math.round(totalScore / data.sessions.length),
       levelDistribution,
-      powerUpUsage: {
-        speed: powerUpUsage.speed || 0,
-        multishot: powerUpUsage.multishot || 0,
-        bigship: powerUpUsage.bigship || 0,
-        shield: powerUpUsage.shield || 0,
-        rapidfire: powerUpUsage.rapidfire || 0,
-        bomb: powerUpUsage.bomb || 0
-      },
+      powerUpUsage,
       totalBossesDefeated: data.totalBossesDefeated || 0,
       totalBossesFought: data.totalBossesFought || 0,
       bossWinRate: Math.round(bossWinRate)
