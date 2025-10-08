@@ -13,11 +13,10 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
   const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 })
   const touchIdRef = useRef<number | null>(null)
 
-  const JOYSTICK_SIZE = 120
-  const JOYSTICK_RANGE = 50
-  // Fixed position: bottom-left corner
-  const JOYSTICK_BASE_X = 80
-  const JOYSTICK_BASE_Y = window.innerHeight - 120
+  const JOYSTICK_SIZE = 140
+  const JOYSTICK_RANGE = 60
+  const JOYSTICK_BASE_X = 90
+  const JOYSTICK_BASE_Y = window.innerHeight - 150
 
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
@@ -26,21 +25,21 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
         const x = touch.clientX
         const y = touch.clientY
 
-        // Check if touch is within joystick area (bottom-left 150px radius)
         const distanceFromJoystick = Math.sqrt(
           Math.pow(x - JOYSTICK_BASE_X, 2) + Math.pow(y - JOYSTICK_BASE_Y, 2)
         )
 
         if (distanceFromJoystick < 100 && touchIdRef.current === null) {
-          // Touch is on joystick
           e.preventDefault()
+          e.stopPropagation()
           touchIdRef.current = touch.identifier
           setJoystickPosition({ x: JOYSTICK_BASE_X, y: JOYSTICK_BASE_Y })
           setJoystickActive(true)
         } else {
-          // Touch is on canvas - shoot at that location
-          e.preventDefault()
-          onShoot(x, y)
+          // Only shoot if not touching joystick
+          if (touchIdRef.current === null) {
+            onShoot(x, y)
+          }
         }
       }
     }
@@ -51,15 +50,14 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
         
         if (touch.identifier === touchIdRef.current) {
           e.preventDefault()
+          e.stopPropagation()
           const x = touch.clientX
           const y = touch.clientY
 
-          // Calculate distance from base
           const dx = x - JOYSTICK_BASE_X
           const dy = y - JOYSTICK_BASE_Y
           const distance = Math.sqrt(dx * dx + dy * dy)
 
-          // Clamp to range
           if (distance > JOYSTICK_RANGE) {
             const angle = Math.atan2(dy, dx)
             setJoystickPosition({
@@ -70,9 +68,8 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
             setJoystickPosition({ x, y })
           }
 
-          // Send normalized movement (-1 to 1)
-          const normalizedX = dx / JOYSTICK_RANGE
-          const normalizedY = dy / JOYSTICK_RANGE
+          const normalizedX = Math.max(-1, Math.min(1, dx / JOYSTICK_RANGE))
+          const normalizedY = Math.max(-1, Math.min(1, dy / JOYSTICK_RANGE))
           onMove(normalizedX, normalizedY)
         }
       }
@@ -84,6 +81,7 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
         
         if (touch.identifier === touchIdRef.current) {
           e.preventDefault()
+          e.stopPropagation()
           touchIdRef.current = null
           setJoystickActive(false)
           setJoystickPosition({ x: JOYSTICK_BASE_X, y: JOYSTICK_BASE_Y })
@@ -106,60 +104,54 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
   }, [onMove, onShoot])
 
   return (
-    <>
-      {/* Joystick Base - Always visible */}
+    <div className="fixed left-0 bottom-0 z-40 pointer-events-none" style={{ width: 200, height: 200 }}>
+      {/* Joystick Base */}
       <div
+        className="absolute"
         style={{
-          position: 'fixed',
           left: JOYSTICK_BASE_X - JOYSTICK_SIZE / 2,
-          bottom: 120,
+          bottom: 150,
           width: JOYSTICK_SIZE,
           height: JOYSTICK_SIZE,
           borderRadius: '50%',
           backgroundColor: 'rgba(255, 255, 255, 0.15)',
           border: '3px solid rgba(255, 255, 255, 0.4)',
-          pointerEvents: 'none',
-          zIndex: 1000
+          pointerEvents: 'auto'
         }}
       />
       
       {/* Joystick Stick */}
       <div
         style={{
-          position: 'fixed',
-          left: joystickPosition.x - 30,
-          bottom: window.innerHeight - joystickPosition.y - 30,
-          width: 60,
-          height: 60,
+          position: 'absolute',
+          left: joystickPosition.x - 35,
+          bottom: window.innerHeight - joystickPosition.y - 35,
+          width: 70,
+          height: 70,
           borderRadius: '50%',
           backgroundColor: joystickActive 
             ? 'rgba(59, 130, 246, 0.9)' 
             : 'rgba(59, 130, 246, 0.6)',
-          border: '3px solid rgba(255, 255, 255, 0.9)',
-          pointerEvents: 'none',
-          zIndex: 1001,
+          border: '4px solid rgba(255, 255, 255, 0.9)',
+          pointerEvents: 'auto',
           transition: joystickActive ? 'none' : 'all 0.2s ease',
           boxShadow: joystickActive 
-            ? '0 0 20px rgba(59, 130, 246, 0.6)' 
+            ? '0 0 25px rgba(59, 130, 246, 0.8)' 
             : 'none'
         }}
       />
 
-      {/* Instruction Text */}
+      {/* Label */}
       <div
+        className="absolute text-white/60 text-sm font-medium"
         style={{
-          position: 'fixed',
-          left: 20,
-          bottom: 20,
-          color: 'rgba(255, 255, 255, 0.6)',
-          fontSize: '12px',
-          pointerEvents: 'none',
-          zIndex: 999,
-          textShadow: '0 0 4px black'
+          left: 35,
+          bottom: 10,
+          pointerEvents: 'none'
         }}
       >
         Move
       </div>
-    </>
+    </div>
   )
 }
