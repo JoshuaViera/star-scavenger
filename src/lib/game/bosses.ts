@@ -1,5 +1,4 @@
 // src/lib/game/bosses.ts
-
 export interface Boss {
   x: number
   y: number
@@ -29,51 +28,51 @@ export interface BossBullet {
 export const BOSS_TYPES = {
   asteroid_king: {
     name: 'Asteroid King',
-    health: 50,
+    health: 25,           // was 50
     size: 80,
-    speed: 1,
-    fireRate: 1000,
-    bulletSpeed: 3,
+    speed: 0.5,           // was 1
+    fireRate: 2000,       // was 1000 (shoots half as often)
+    bulletSpeed: 2,       // was 3
     color: '#FFD700',
     phases: 3
   },
   void_hunter: {
     name: 'Void Hunter',
-    health: 80,
+    health: 40,           // was 80
     size: 90,
-    speed: 1.2,
-    fireRate: 800,
-    bulletSpeed: 3.5,
+    speed: 0.6,           // was 1.2
+    fireRate: 1600,       // was 800
+    bulletSpeed: 2.5,     // was 3.5
     color: '#8B00FF',
     phases: 3
   },
   meteor_lord: {
     name: 'Meteor Lord',
-    health: 120,
+    health: 60,           // was 120
     size: 100,
-    speed: 0.8,
-    fireRate: 600,
-    bulletSpeed: 4,
+    speed: 0.4,           // was 0.8
+    fireRate: 1200,       // was 600
+    bulletSpeed: 3,       // was 4
     color: '#FF4500',
     phases: 4
   },
   chaos_titan: {
     name: 'Chaos Titan',
-    health: 180,
+    health: 90,           // was 180
     size: 110,
-    speed: 1.5,
-    fireRate: 500,
-    bulletSpeed: 4.5,
+    speed: 0.75,          // was 1.5
+    fireRate: 1000,       // was 500
+    bulletSpeed: 3.5,     // was 4.5
     color: '#DC143C',
     phases: 4
   },
   gauntlet_overlord: {
     name: 'Gauntlet Overlord',
-    health: 250,
+    health: 125,          // was 250
     size: 120,
-    speed: 2,
-    fireRate: 400,
-    bulletSpeed: 5,
+    speed: 1,             // was 2
+    fireRate: 800,        // was 400
+    bulletSpeed: 4,       // was 5
     color: '#FF0000',
     phases: 5
   }
@@ -81,7 +80,6 @@ export const BOSS_TYPES = {
 
 export function createBoss(type: 'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'): Boss {
   const config = BOSS_TYPES[type]
-  
   return {
     x: 400 - config.size / 2,
     y: 100,

@@ -25,7 +25,7 @@ interface Level {
 
 export function useGameLoop(
   gameStateRef: RefObject<GameState>,
-canvasRef: RefObject<HTMLCanvasElement | null>,
+  canvasRef: RefObject<HTMLCanvasElement | null>,
   keysRef: RefObject<Record<string, boolean>>,
   mousePosRef: RefObject<{ x: number; y: number }>,
   particleSystemRef: RefObject<ParticleSystem>,
@@ -226,7 +226,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
             state.gameOver = true
             setGameOver(true)
             soundManager.collision()
-            analytics.gameOver(state.score)
+            analytics.gameOver(state.score, state.currentLevel, state.difficulty)
             particleSystemRef.current?.createExplosion(
               state.player.x + PLAYER_SIZE / 2,
               state.player.y + PLAYER_SIZE / 2,
@@ -279,6 +279,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
               state.boss = null
               state.bossBullets = []
               state.bossActive = false
+              state.bossDefeated = true
             }
 
             break
@@ -309,7 +310,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
             state.gameOver = true
             setGameOver(true)
             soundManager.collision()
-            analytics.gameOver(state.score)
+            analytics.gameOver(state.score, state.currentLevel, state.difficulty)
             particleSystemRef.current?.createExplosion(
               state.player.x + PLAYER_SIZE / 2,
               state.player.y + PLAYER_SIZE / 2,
@@ -389,7 +390,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
             state.gameOver = true
             setGameOver(true)
             soundManager.collision()
-            analytics.gameOver(state.score)
+            analytics.gameOver(state.score, state.currentLevel, state.difficulty)
             particleSystemRef.current?.createExplosion(
               state.player.x + PLAYER_SIZE / 2,
               state.player.y + PLAYER_SIZE / 2,
@@ -521,7 +522,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
             state.gameOver = true
             setGameOver(true)
             soundManager.collision()
-            analytics.gameOver(state.score)
+            analytics.gameOver(state.score, state.currentLevel, state.difficulty)
             particleSystemRef.current?.createExplosion(
               state.player.x + PLAYER_SIZE / 2,
               state.player.y + PLAYER_SIZE / 2,
@@ -562,8 +563,8 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
         })
       }
 
-      // Boss spawning
-      if (state.score >= level.targetScore && !levelComplete && !state.bossActive) {
+      // Boss spawning - ONLY spawn if we haven't already defeated a boss this level
+      if (state.score >= level.targetScore && !state.bossActive && !state.boss && !state.bossDefeated) {
         const bossTypes: Array<'asteroid_king' | 'void_hunter' | 'meteor_lord' | 'chaos_titan' | 'gauntlet_overlord'> = [
           'asteroid_king',
           'void_hunter',
@@ -585,8 +586,8 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
         state.enemyBullets = []
       }
 
-      // Level completion
-      if (state.score >= level.targetScore && !state.bossActive && !state.boss && !levelComplete) {
+      // Level completion - ONLY after boss is defeated
+      if (state.score >= level.targetScore && !state.bossActive && !state.boss && state.bossDefeated && !levelComplete) {
         if (state.currentLevel < 5) {
           setLevelComplete(true)
           if (state.currentLevel >= state.unlockedLevels) {
@@ -597,7 +598,7 @@ canvasRef: RefObject<HTMLCanvasElement | null>,
         } else {
           state.gameOver = true
           setGameOver(true)
-          analytics.gameOver(state.score)
+          analytics.gameOver(state.score, state.currentLevel, state.difficulty)
         }
       }
 

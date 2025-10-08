@@ -1,7 +1,6 @@
 // src/components/auth/AuthModal.tsx
 'use client'
 
-import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
@@ -9,10 +8,9 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: () => void
 }
 
-export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const supabase = createClient()
 
   if (!isOpen) return null

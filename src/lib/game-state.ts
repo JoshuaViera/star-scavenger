@@ -15,14 +15,20 @@ export interface SavedGameState {
   score: number
   health: number
   game_state: {
-    player: any
-    bullets: any[]
-    asteroids: any[]
-    enemies: any[]
-    powerUps: any[]
-    boss: any | null
-    activePowerUps: any
-    // Add any other game state you need to preserve
+    player: unknown
+    bullets: unknown[]
+    asteroids: unknown[]
+    enemies: unknown[]
+    powerUps: unknown[]
+    boss: unknown
+    activePowerUps: {
+      speed: number
+      multishot: number
+      bigship: number
+      shield: number
+      rapidfire: number
+      bomb: number
+    }
   }
 }
 

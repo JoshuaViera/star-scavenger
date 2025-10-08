@@ -2,15 +2,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AuthModal } from '@/components/auth/AuthModal'
-import { UserMenu } from '@/components/auth/UserMenu'
-import { Leaderboard } from '@/components/game/Leaderboard'
-import { gameState } from '@/lib/game-state'
+import { AuthModal } from '../auth/AuthModal'
+import { UserMenu } from '../auth/UserMenu'
+import { Leaderboard } from './Leaderboard'
+import { gameState, SavedGameState } from '@/lib/game-state'
 import { useAuth } from '@/hooks/useAuth'
 
 interface GameMenuProps {
   onStartGame: (level: number, difficulty: string) => void
-  onResumeGame?: (savedState: any) => void
+  onResumeGame?: (savedState: SavedGameState) => void
   highScore: number
 }
 
@@ -28,11 +28,18 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
     checkForSavedGame()
   }, [user])
 
+  // Auto-close auth modal when user signs in
+  useEffect(() => {
+    if (user && showAuthModal) {
+      setShowAuthModal(false)
+    }
+  }, [user, showAuthModal])
+
   const loadProgress = async () => {
     const progress = await gameState.getProgress()
     if (progress) {
       setUnlockedLevels(progress.unlocked_levels)
-      setSelectedDifficulty(progress.difficulty as any)
+      setSelectedDifficulty(progress.difficulty as 'easy' | 'medium' | 'hard')
     }
   }
 
@@ -219,10 +226,6 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onSuccess={() => {
-          setShowAuthModal(false)
-          loadProgress()
-        }}
       />
     </div>
   )

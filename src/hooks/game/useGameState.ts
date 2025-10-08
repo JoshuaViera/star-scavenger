@@ -33,6 +33,7 @@ export interface GameState {
   boss: Boss | null
   bossBullets: BossBullet[]
   bossActive: boolean
+  bossDefeated: boolean
   score: number
   gameOver: boolean
   isPaused: boolean
@@ -60,6 +61,7 @@ export function useGameState() {
     boss: null,
     bossBullets: [],
     bossActive: false,
+    bossDefeated: false,
     score: 0,
     gameOver: false,
     isPaused: false,
@@ -102,6 +104,7 @@ export function useGameState() {
       boss: null,
       bossBullets: [],
       bossActive: false,
+      bossDefeated: false,
       score: 0,
       gameOver: false,
       isPaused: false,

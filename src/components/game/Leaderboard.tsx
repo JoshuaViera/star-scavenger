@@ -28,6 +28,7 @@ export function Leaderboard({ difficulty = 'all', limit = 100 }: LeaderboardProp
 
   useEffect(() => {
     fetchLeaderboard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter])
 
   const fetchLeaderboard = async () => {
