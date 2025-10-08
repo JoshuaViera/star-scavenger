@@ -142,8 +142,7 @@ const GameCanvas = () => {
     }, 30000) // Save every 30 seconds
 
     return () => clearInterval(saveInterval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameStarted, gameOver, isPaused, currentLevel, score])
+  }, [gameStarted, gameOver, isPaused, currentLevel, score, gameStateRef])
 
   // Handle level complete - update Supabase
   useEffect(() => {
@@ -154,7 +153,6 @@ const GameCanvas = () => {
       }
       gameState.updateHighScore(score)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelComplete, currentLevel, score])
 
   // Handle game over - submit to leaderboard
@@ -162,9 +160,8 @@ const GameCanvas = () => {
     if (gameOver) {
       analytics.gameOver(score, currentLevel, difficulty)
       gameState.updateHighScore(score)
-      gameState.deleteSavedGame() // Clear saved game on game over
+      gameState.deleteSavedGame()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameOver, score, currentLevel, difficulty])
 
   // Main menu
@@ -173,6 +170,10 @@ const GameCanvas = () => {
       <GameMenu
         highScore={highScore}
         onStartGame={(level: number, selectedDifficulty: string) => {
+          // Set difficulty on ref immediately (synchronously) before resetGame
+          gameStateRef.current.currentLevel = level
+          gameStateRef.current.difficulty = selectedDifficulty as 'easy' | 'medium' | 'hard'
+          
           setCurrentLevel(level)
           setDifficulty(selectedDifficulty as 'easy' | 'medium' | 'hard')
           setGameStarted(true)
