@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { musicManager } from '@/lib/game/music'
 import { soundManager } from '@/lib/game/sounds'
 import { analytics } from '@/lib/analytics'
-import { gameState, SavedGameState } from '@/lib/game-state'
+import { gameState } from '@/lib/game-state'
 import { GameMenu } from './game/GameMenu'
 import { useGameState } from '@/hooks/game/useGameState'
 import { useGameSystems } from '@/hooks/game/useGameSystems'
@@ -142,7 +142,8 @@ const GameCanvas = () => {
     }, 30000) // Save every 30 seconds
 
     return () => clearInterval(saveInterval)
-  }, [gameStarted, gameOver, isPaused, currentLevel, score, gameStateRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStarted, gameOver, isPaused, currentLevel, score])
 
   // Handle level complete - update Supabase
   useEffect(() => {
@@ -153,6 +154,7 @@ const GameCanvas = () => {
       }
       gameState.updateHighScore(score)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelComplete, currentLevel, score])
 
   // Handle game over - submit to leaderboard
@@ -162,6 +164,7 @@ const GameCanvas = () => {
       gameState.updateHighScore(score)
       gameState.deleteSavedGame() // Clear saved game on game over
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameOver, score, currentLevel, difficulty])
 
   // Main menu
@@ -177,18 +180,18 @@ const GameCanvas = () => {
           setLevelComplete(false)
           resetGame()
         }}
-        onResumeGame={(savedState: any) => {
+        onResumeGame={(savedState) => {
           // Restore full game state
           setCurrentLevel(savedState.level)
           setScore(savedState.score)
           
-          // Restore all game objects
-          gameStateRef.current.player = savedState.game_state.player
-          gameStateRef.current.bullets = savedState.game_state.bullets || []
-          gameStateRef.current.asteroids = savedState.game_state.asteroids || []
-          gameStateRef.current.enemies = savedState.game_state.enemies || []
-          gameStateRef.current.powerUps = savedState.game_state.powerUps || []
-          gameStateRef.current.boss = savedState.game_state.boss || null
+          // Restore all game objects with type assertions
+          gameStateRef.current.player = savedState.game_state.player as typeof gameStateRef.current.player
+          gameStateRef.current.bullets = (savedState.game_state.bullets || []) as typeof gameStateRef.current.bullets
+          gameStateRef.current.asteroids = (savedState.game_state.asteroids || []) as typeof gameStateRef.current.asteroids
+          gameStateRef.current.enemies = (savedState.game_state.enemies || []) as typeof gameStateRef.current.enemies
+          gameStateRef.current.powerUps = (savedState.game_state.powerUps || []) as typeof gameStateRef.current.powerUps
+          gameStateRef.current.boss = (savedState.game_state.boss || null) as typeof gameStateRef.current.boss
           gameStateRef.current.activePowerUps = savedState.game_state.activePowerUps || {
             speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0
           }
@@ -317,7 +320,7 @@ const GameCanvas = () => {
                 className={`px-6 py-3 rounded ${lvl.number <= unlockedLevels
                   ? 'bg-cyan-500 hover:bg-cyan-600'
                   : 'bg-gray-600 cursor-not-allowed'
-                  }`}
+                }`}
               >
                 Level {lvl.number}: {lvl.name} {lvl.number > unlockedLevels && '🔒'}
               </button>
