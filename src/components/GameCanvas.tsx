@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import { useEffect } from 'react'
 import { musicManager } from '@/lib/game/music'
 import { soundManager } from '@/lib/game/sounds'
 import { analytics } from '@/lib/analytics'
 import { gameState } from '@/lib/game-state'
 import { GameMenu } from './game/GameMenu'
+import { MobileJoystick } from './game/MobileJoystick'
 import { useGameState } from '@/hooks/game/useGameState'
 import { useGameSystems } from '@/hooks/game/useGameSystems'
 import { useInputHandlers } from '@/hooks/game/useInputHandlers'
@@ -14,6 +15,8 @@ import { useAsteroidSpawning } from '@/hooks/game/useAsteroidSpawning'
 import { usePowerUpSpawning } from '@/hooks/game/usePowerUpSpawning'
 import { useEnemySpawning } from '@/hooks/game/useEnemySpawning'
 import { useGameLoop } from '@/hooks/game/useGameLoop'
+import { useMobileDetection } from '@/hooks/useMobileDetection'
+import { useResponsiveCanvas } from '@/hooks/useResponsiveCanvas'
 
 const LEVELS = [
   { number: 1, name: 'Asteroid Belt', targetScore: 500, asteroidSpeed: 1, spawnRate: 2000, asteroidCount: 10 },
@@ -23,10 +26,17 @@ const LEVELS = [
   { number: 5, name: 'The Gauntlet', targetScore: 8000, asteroidSpeed: 3, spawnRate: 900, asteroidCount: 20 }
 ]
 
+const PLAYER_SPEED = 3
+
 const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const keysRef = useRef<Record<string, boolean>>({})
   const mousePosRef = useRef({ x: 400, y: 300 })
+  const mobileInputRef = useRef({ x: 0, y: 0 })
+
+  // Mobile detection
+  const isMobile = useMobileDetection()
+  const canvasSize = useResponsiveCanvas(canvasRef)
 
   // Game state
   const {
@@ -64,19 +74,62 @@ const GameCanvas = () => {
 
   const level = LEVELS[gameStateRef.current.currentLevel - 1]
 
-  // Input handlers
-  useInputHandlers(
+  // Input handlers with mobile support
+  const { shoot } = useInputHandlers({
     gameStateRef,
     keysRef,
     mousePosRef,
-    lastShotTime,
-    particles,
-    screenShake,
+    lastShotTimeRef: lastShotTime,
+    particleSystemRef: particles,
+    screenShakeRef: screenShake,
     canvasRef,
     gameStarted,
     gameOver,
-    setIsPaused
-  )
+    setIsPaused,
+    isMobile,
+    mobileInputRef
+  })
+
+  // Mobile joystick handlers
+  const handleMobileMove = (x: number, y: number) => {
+    if (!gameStateRef.current || !isMobile) return
+    
+    mobileInputRef.current.x = x
+    mobileInputRef.current.y = y
+
+    // Update player position directly for mobile
+    const player = gameStateRef.current.player
+    player.x += x * PLAYER_SPEED
+    player.y += y * PLAYER_SPEED
+
+    // Keep player in bounds
+    player.x = Math.max(0, Math.min(780, player.x))
+    player.y = Math.max(0, Math.min(580, player.y))
+  }
+
+  const handleMobileShoot = (x: number, y: number) => {
+    if (!gameStateRef.current || !canvasRef.current) return
+
+    // Convert screen coordinates to canvas coordinates
+    const rect = canvasRef.current.getBoundingClientRect()
+    const canvasX = ((x - rect.left) / rect.width) * 800
+    const canvasY = ((y - rect.top) / rect.height) * 600
+
+    // Update mouse position for aiming
+    mousePosRef.current.x = canvasX
+    mousePosRef.current.y = canvasY
+
+    // Update player rotation to aim at tap
+    const player = gameStateRef.current.player
+    const angle = Math.atan2(
+      canvasY - (player.y + 10),
+      canvasX - (player.x + 10)
+    )
+    player.rotation = angle
+
+    // Shoot
+    shoot()
+  }
 
   // Spawning systems
   useAsteroidSpawning(gameStateRef, gameStarted, level)
@@ -139,7 +192,7 @@ const GameCanvas = () => {
           activePowerUps: gameStateRef.current.activePowerUps
         }
       })
-    }, 30000) // Save every 30 seconds
+    }, 30000)
 
     return () => clearInterval(saveInterval)
   }, [gameStarted, gameOver, isPaused, currentLevel, score, gameStateRef])
@@ -170,7 +223,6 @@ const GameCanvas = () => {
       <GameMenu
         highScore={highScore}
         onStartGame={(level: number, selectedDifficulty: string) => {
-          // Set difficulty on ref immediately (synchronously) before resetGame
           gameStateRef.current.currentLevel = level
           gameStateRef.current.difficulty = selectedDifficulty as 'easy' | 'medium' | 'hard'
           
@@ -182,11 +234,9 @@ const GameCanvas = () => {
           resetGame()
         }}
         onResumeGame={(savedState) => {
-          // Restore full game state
           setCurrentLevel(savedState.level)
           setScore(savedState.score)
           
-          // Restore all game objects with type assertions
           gameStateRef.current.player = savedState.game_state.player as typeof gameStateRef.current.player
           gameStateRef.current.bullets = (savedState.game_state.bullets || []) as typeof gameStateRef.current.bullets
           gameStateRef.current.asteroids = (savedState.game_state.asteroids || []) as typeof gameStateRef.current.asteroids
@@ -207,55 +257,73 @@ const GameCanvas = () => {
 
   // Game UI
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-900">
-      <div className="absolute top-4 right-4 flex gap-2 z-10">
+    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-900 overflow-hidden">
+      {/* Mobile Joystick */}
+      {isMobile && gameStarted && !gameOver && !isPaused && (
+        <MobileJoystick
+          onMove={handleMobileMove}
+          onShoot={handleMobileShoot}
+        />
+      )}
+
+      {/* UI Buttons - Larger on mobile */}
+      <div className={`absolute top-4 right-4 flex gap-2 z-10 ${isMobile ? 'scale-125' : ''}`}>
         <button
           onClick={() => {
             gameStateRef.current.isPaused = !gameStateRef.current.isPaused
             setIsPaused(gameStateRef.current.isPaused)
           }}
-          className="px-4 py-2 bg-yellow-500 rounded hover:bg-yellow-600 transition-colors"
+          className={`${isMobile ? 'px-6 py-3' : 'px-4 py-2'} bg-yellow-500 rounded hover:bg-yellow-600 transition-colors`}
         >
           {isPaused ? 'Resume' : 'Pause'}
         </button>
         <button
           onClick={() => setIsMuted(soundManager.toggleMute())}
-          className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+          className={`${isMobile ? 'px-6 py-3' : 'px-4 py-2'} bg-gray-700 rounded hover:bg-gray-600 transition-colors`}
         >
           {isMuted ? '🔇' : '🔊'}
         </button>
         <button
           onClick={() => setIsMusicMuted(musicManager.toggleMute())}
-          className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+          className={`${isMobile ? 'px-6 py-3' : 'px-4 py-2'} bg-gray-700 rounded hover:bg-gray-600 transition-colors`}
         >
           {isMusicMuted ? '🎵' : '🎶'}
         </button>
-        <button
-          onClick={() => setShowLevelSelect(true)}
-          className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
-        >
-          Levels
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => setShowLevelSelect(true)}
+            className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+          >
+            Levels
+          </button>
+        )}
       </div>
 
       <canvas
         ref={canvasRef}
         width={800}
         height={600}
-        className="bg-black border-2 border-cyan-700 cursor-crosshair"
+        className={`bg-black border-2 border-cyan-700 ${isMobile ? '' : 'cursor-crosshair'}`}
+        style={{
+          touchAction: 'none',
+          maxWidth: '100vw',
+          maxHeight: '100vh'
+        }}
       />
 
       {isPaused && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
-          <h2 className="text-5xl font-bold">Paused</h2>
-          <p className="text-xl mt-4">Press P or click Resume</p>
+          <h2 className={`${isMobile ? 'text-4xl' : 'text-5xl'} font-bold`}>Paused</h2>
+          <p className={`${isMobile ? 'text-lg' : 'text-xl'} mt-4`}>
+            {isMobile ? 'Tap Resume' : 'Press P or click Resume'}
+          </p>
         </div>
       )}
 
       {levelComplete && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
-          <h2 className="text-5xl font-bold text-cyan-400">Level Complete!</h2>
-          <p className="text-2xl mt-4">Score: {score}</p>
+        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white px-4">
+          <h2 className={`${isMobile ? 'text-4xl' : 'text-5xl'} font-bold text-cyan-400`}>Level Complete!</h2>
+          <p className={`${isMobile ? 'text-xl' : 'text-2xl'} mt-4`}>Score: {score}</p>
           <div className="flex gap-4 mt-8">
             <button
               onClick={() => {
@@ -264,7 +332,7 @@ const GameCanvas = () => {
                 analytics.retry()
                 resetGame()
               }}
-              className="px-6 py-3 bg-cyan-500 rounded hover:bg-cyan-600 transition-colors"
+              className={`${isMobile ? 'px-8 py-4 text-lg' : 'px-6 py-3'} bg-cyan-500 rounded hover:bg-cyan-600 transition-colors`}
             >
               Next Level
             </button>
@@ -273,7 +341,7 @@ const GameCanvas = () => {
                 setGameStarted(false)
                 setLevelComplete(false)
               }}
-              className="px-6 py-3 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+              className={`${isMobile ? 'px-8 py-4 text-lg' : 'px-6 py-3'} bg-gray-700 rounded hover:bg-gray-600 transition-colors`}
             >
               Main Menu
             </button>
@@ -282,17 +350,19 @@ const GameCanvas = () => {
       )}
 
       {gameOver && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white">
-          <h2 className="text-5xl font-bold">{currentLevel === 5 && score >= LEVELS[4].targetScore ? 'You Win!' : 'Game Over'}</h2>
-          <p className="text-2xl mt-4">Final Score: {score}</p>
-          {score > highScore && <p className="text-xl mt-2 text-yellow-400">New High Score!</p>}
+        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex flex-col justify-center items-center text-white px-4">
+          <h2 className={`${isMobile ? 'text-4xl' : 'text-5xl'} font-bold`}>
+            {currentLevel === 5 && score >= LEVELS[4].targetScore ? 'You Win!' : 'Game Over'}
+          </h2>
+          <p className={`${isMobile ? 'text-xl' : 'text-2xl'} mt-4`}>Final Score: {score}</p>
+          {score > highScore && <p className={`${isMobile ? 'text-lg' : 'text-xl'} mt-2 text-yellow-400`}>New High Score!</p>}
           <div className="flex gap-4 mt-8">
             <button
               onClick={() => {
                 analytics.retry()
                 resetGame()
               }}
-              className="px-6 py-3 bg-cyan-500 rounded hover:bg-cyan-600 transition-colors"
+              className={`${isMobile ? 'px-8 py-4 text-lg' : 'px-6 py-3'} bg-cyan-500 rounded hover:bg-cyan-600 transition-colors`}
             >
               Replay Level
             </button>
@@ -301,7 +371,7 @@ const GameCanvas = () => {
                 setGameStarted(false)
                 setGameOver(false)
               }}
-              className="px-6 py-3 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+              className={`${isMobile ? 'px-8 py-4 text-lg' : 'px-6 py-3'} bg-gray-700 rounded hover:bg-gray-600 transition-colors`}
             >
               Main Menu
             </button>
@@ -309,7 +379,7 @@ const GameCanvas = () => {
         </div>
       )}
 
-      {showLevelSelect && (
+      {showLevelSelect && !isMobile && (
         <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-90 flex flex-col justify-center items-center text-white">
           <h2 className="text-3xl font-bold mb-6">Select Level</h2>
           <div className="grid grid-cols-1 gap-3">
