@@ -91,8 +91,7 @@ export function useGameState() {
     }
   }, [])
 
-const resetGame = () => {
-    // ✅ FIX: Read difficulty from ref, not state
+  const resetGame = () => {
     const currentDifficulty = gameStateRef.current.difficulty
     const diffSettings = DIFFICULTY_SETTINGS[currentDifficulty]
     
@@ -120,12 +119,11 @@ const resetGame = () => {
       },
       currentLevel: gameStateRef.current.currentLevel,
       unlockedLevels: gameStateRef.current.unlockedLevels,
-      difficulty: currentDifficulty  // ✅ FIX: Use the difficulty from ref
+      difficulty: currentDifficulty
     }
     setScore(0)
     setGameOver(false)
     setLevelComplete(false)
-    setGameStarted(true)
     setIsPaused(false)
 
     analytics.startSession(gameStateRef.current.currentLevel)

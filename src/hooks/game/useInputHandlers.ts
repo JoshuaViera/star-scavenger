@@ -42,8 +42,8 @@ export function useInputHandlers({
 }: InputHandlers) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!gameStateRef.current) return
-
+      if (!gameStateRef.current || !e || !e.key) return
+      
       if (e.key.toLowerCase() === 'p') {
         if (gameStarted && !gameOver) {
           gameStateRef.current.isPaused = !gameStateRef.current.isPaused
@@ -51,13 +51,13 @@ export function useInputHandlers({
         }
         return
       }
-
+      
       if (e.key === ' ' && gameStateRef.current.activePowerUps.bomb > 0) {
         e.preventDefault()
         activateBomb()
         return
       }
-
+      
       if (keysRef.current) {
         keysRef.current[e.key.toLowerCase()] = true
       }
@@ -65,7 +65,7 @@ export function useInputHandlers({
 
     const activateBomb = () => {
       if (!gameStateRef.current) return
-
+      
       // Destroy all asteroids
       gameStateRef.current.asteroids.forEach(a => {
         particleSystemRef.current?.createExplosion(
@@ -77,7 +77,7 @@ export function useInputHandlers({
         gameStateRef.current!.score += Math.floor(a.size)
       })
       gameStateRef.current.asteroids = []
-
+      
       // Destroy all enemies
       gameStateRef.current.enemies.forEach(enemy => {
         particleSystemRef.current?.createExplosion(
@@ -90,7 +90,7 @@ export function useInputHandlers({
       })
       gameStateRef.current.enemies = []
       gameStateRef.current.enemyBullets = []
-
+      
       // Damage boss if active
       if (gameStateRef.current.boss) {
         gameStateRef.current.boss.health -= 20
@@ -108,20 +108,19 @@ export function useInputHandlers({
           gameStateRef.current.bossDefeated = true
         }
       }
-
+      
       gameStateRef.current.activePowerUps.bomb = 0
       soundManager.explosion()
       screenShakeRef.current?.trigger(20, 400)
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (keysRef.current) {
-        keysRef.current[e.key.toLowerCase()] = false
-      }
+      if (!e || !e.key || !keysRef.current) return
+      keysRef.current[e.key.toLowerCase()] = false
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isMobile) return // Skip on mobile
+      if (isMobile) return
       
       if (canvasRef.current && mousePosRef.current) {
         const rect = canvasRef.current.getBoundingClientRect()
@@ -130,20 +129,20 @@ export function useInputHandlers({
       }
     }
 
-    const handleShoot = (e?: MouseEvent) => {
+    const handleShoot = () => {
       if (!gameStateRef.current || gameStateRef.current.gameOver || !gameStarted || gameStateRef.current.isPaused) return
-
+      
       const now = Date.now()
       const fireRate = gameStateRef.current.activePowerUps.rapidfire > 0 ? 100 : 200
       if (now - lastShotTimeRef.current! < fireRate) return
+      
       lastShotTimeRef.current! = now
-
       const p = gameStateRef.current.player
       const speed = gameStateRef.current.activePowerUps.speed > 0 ? BULLET_SPEED * 1.5 : BULLET_SPEED
       const lifeBonus = gameStateRef.current.activePowerUps.rapidfire > 0 ? 1.5 : 1
-
+      
       soundManager.shoot()
-
+      
       if (gameStateRef.current.activePowerUps.multishot > 0) {
         for (let i = -1; i <= 1; i++) {
           const angle = p.rotation + (i * 0.2)
@@ -194,18 +193,18 @@ export function useInputHandlers({
   return {
     shoot: () => {
       if (!gameStateRef.current || gameStateRef.current.gameOver || !gameStarted || gameStateRef.current.isPaused) return
-
+      
       const now = Date.now()
       const fireRate = gameStateRef.current.activePowerUps.rapidfire > 0 ? 100 : 200
       if (now - lastShotTimeRef.current! < fireRate) return
+      
       lastShotTimeRef.current! = now
-
       const p = gameStateRef.current.player
       const speed = gameStateRef.current.activePowerUps.speed > 0 ? BULLET_SPEED * 1.5 : BULLET_SPEED
       const lifeBonus = gameStateRef.current.activePowerUps.rapidfire > 0 ? 1.5 : 1
-
+      
       soundManager.shoot()
-
+      
       if (gameStateRef.current.activePowerUps.multishot > 0) {
         for (let i = -1; i <= 1; i++) {
           const angle = p.rotation + (i * 0.2)
