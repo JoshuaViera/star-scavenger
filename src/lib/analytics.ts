@@ -138,7 +138,7 @@ class Analytics {
     
     this.saveAnalyticsData(data)
 
-    // Submit to Supabase leaderboard
+    // ✅ FIX: Submit to Supabase leaderboard with bosses defeated
     await this.submitToLeaderboard(finalScore, level, difficulty)
   }
 
@@ -146,7 +146,10 @@ class Analytics {
     try {
       const { data: { user } } = await this.supabase.auth.getUser()
       
-      if (!user) return // Only logged-in users can submit scores
+      if (!user) {
+        console.log('No user logged in - skipping leaderboard submission')
+        return
+      }
 
       const { data: profile } = await this.supabase
         .from('profiles')
@@ -154,21 +157,42 @@ class Analytics {
         .eq('id', user.id)
         .single()
 
-      if (!profile) return
+      if (!profile) {
+        console.log('No profile found - skipping leaderboard submission')
+        return
+      }
 
       const sessionDuration = this.currentSession?.endTime && this.currentSession?.startTime
         ? Math.round((this.currentSession.endTime - this.currentSession.startTime) / 1000)
         : 0
 
-      await this.supabase.from('leaderboard').insert({
+      // ✅ FIX: Make sure we're getting the correct bosses defeated count
+      const bossesDefeated = this.currentSession?.bossesDefeated || 0
+
+      console.log('Submitting to leaderboard:', {
+        username: profile.username,
+        score,
+        level_reached: level,
+        difficulty,
+        session_duration: sessionDuration,
+        bosses_defeated: bossesDefeated
+      })
+
+      const { error } = await this.supabase.from('leaderboard').insert({
         user_id: user.id,
         username: profile.username,
         score,
         level_reached: level,
         difficulty,
         session_duration: sessionDuration,
-        bosses_defeated: this.currentSession?.bossesDefeated || 0
+        bosses_defeated: bossesDefeated
       })
+
+      if (error) {
+        console.error('Leaderboard insert error:', error)
+      } else {
+        console.log('✅ Successfully submitted to leaderboard!')
+      }
     } catch (error) {
       console.error('Failed to submit to leaderboard:', error)
     }
