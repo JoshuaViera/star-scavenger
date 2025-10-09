@@ -1,6 +1,7 @@
 // src/components/game/Leaderboard.tsx
 'use client'
 
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -69,16 +70,17 @@ export function Leaderboard({ difficulty = 'all', limit = 100 }: LeaderboardProp
       year: 'numeric'
     })
   }
+ 
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4">
+    <div className="w-full max-w-7xl mx-auto">  {}
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+      <div className="flex gap-2 mb-4 justify-center flex-wrap">  {}
         {['all', 'easy', 'medium', 'hard'].map((diff) => (
           <button
             key={diff}
             onClick={() => setFilter(diff)}
-            className={`px-4 py-2 rounded font-medium transition-colors whitespace-nowrap ${
+            className={`px-6 py-2 rounded font-medium transition-colors whitespace-nowrap ${
               filter === diff
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'

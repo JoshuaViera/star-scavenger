@@ -72,19 +72,28 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
 
   if (showLeaderboard) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black to-blue-950 p-8">
-        <h1 className="mb-8 text-5xl font-bold text-white">
-          🏆 Leaderboard
-        </h1>
+      <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-black to-blue-950 overflow-y-auto">
+        {/* Header */}
+        <div className="flex-shrink-0 py-8 px-4 text-center">
+          <h1 className="mb-4 text-5xl font-bold text-white">
+            🏆 Leaderboard
+          </h1>
+        </div>
         
-        <Leaderboard difficulty="all" limit={100} />
+        {/* Leaderboard - Full Width */}
+        <div className="flex-1 px-4 pb-8 overflow-y-auto">
+          <Leaderboard difficulty="all" limit={100} />
+        </div>
         
-        <button
-          onClick={() => setShowLeaderboard(false)}
-          className="mt-8 rounded-lg bg-gray-800 px-8 py-3 text-lg font-semibold text-white hover:bg-gray-700"
-        >
-          Back to Menu
-        </button>
+        {/* Back Button */}
+        <div className="flex-shrink-0 py-6 text-center bg-gradient-to-t from-black/50 to-transparent">
+          <button
+            onClick={() => setShowLeaderboard(false)}
+            className="rounded-lg bg-gray-800 px-8 py-3 text-lg font-semibold text-white hover:bg-gray-700 transition-colors"
+          >
+            ← Back to Menu
+          </button>
+        </div>
       </div>
     )
   }
