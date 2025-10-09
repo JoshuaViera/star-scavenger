@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useRef } from 'react'
 import { useEffect } from 'react'
 import { musicManager } from '@/lib/game/music'
 import { soundManager } from '@/lib/game/sounds'
@@ -244,14 +244,19 @@ const GameCanvas = () => {
       <GameMenu
         highScore={highScore}
         onStartGame={(level: number, selectedDifficulty: string) => {
+          // Set refs and state
           gameStateRef.current.currentLevel = level
           gameStateRef.current.difficulty = selectedDifficulty as 'easy' | 'medium' | 'hard'
           setCurrentLevel(level)
           setDifficulty(selectedDifficulty as 'easy' | 'medium' | 'hard')
-          setGameStarted(true)
           setGameOver(false)
           setLevelComplete(false)
+          
+          // Reset game FIRST (initializes everything + calls analytics)
           resetGame()
+          
+          // THEN set gameStarted to true (this triggers rendering)
+          setGameStarted(true)
         }}
         onResumeGame={(savedState) => {
           setCurrentLevel(savedState.level)
