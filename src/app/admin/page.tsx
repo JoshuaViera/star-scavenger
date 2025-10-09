@@ -231,39 +231,42 @@ export default function AdminPage() {
             <h2 className="text-2xl font-bold text-white mb-6">🎚️ Difficulty Balance</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.entries(summary.difficultyBreakdown).map(([difficulty, stats]: [string, any]) => (
-                <div key={difficulty} className="bg-gray-900 p-6 rounded-lg border-2 border-gray-700">
-                  <h3 className="text-xl font-bold text-white mb-4 capitalize">{difficulty}</h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-sm text-gray-400">Games Played</div>
-                      <div className="text-2xl font-bold text-white">{stats.plays}</div>
-                    </div>
+              {Object.entries(summary.difficultyBreakdown).map(([difficulty, stats]) => {
+                const typedStats = stats as { plays: number; avgScore: number; avgTime: number; winRate: number }
+                return (
+                  <div key={difficulty} className="bg-gray-900 p-6 rounded-lg border-2 border-gray-700">
+                    <h3 className="text-xl font-bold text-white mb-4 capitalize">{difficulty}</h3>
                     
-                    <div>
-                      <div className="text-sm text-gray-400">Avg Score</div>
-                      <div className="text-2xl font-bold text-cyan-400">{stats.avgScore}</div>
-                    </div>
-                    
-                    <div>
-                      <div className="text-sm text-gray-400">Avg Time</div>
-                      <div className="text-2xl font-bold text-yellow-400">{stats.avgTime}s</div>
-                    </div>
-                    
-                    <div>
-                      <div className="text-sm text-gray-400">Completion Rate</div>
-                      <div className={`text-2xl font-bold ${
-                        stats.winRate < 10 ? 'text-red-400' :
-                        stats.winRate > 30 ? 'text-green-400' :
-                        'text-yellow-400'
-                      }`}>
-                        {stats.winRate}%
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-sm text-gray-400">Games Played</div>
+                        <div className="text-2xl font-bold text-white">{typedStats.plays}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm text-gray-400">Avg Score</div>
+                        <div className="text-2xl font-bold text-cyan-400">{typedStats.avgScore}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm text-gray-400">Avg Time</div>
+                        <div className="text-2xl font-bold text-yellow-400">{typedStats.avgTime}s</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm text-gray-400">Completion Rate</div>
+                        <div className={`text-2xl font-bold ${
+                          typedStats.winRate < 10 ? 'text-red-400' :
+                          typedStats.winRate > 30 ? 'text-green-400' :
+                          'text-yellow-400'
+                        }`}>
+                          {typedStats.winRate}%
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

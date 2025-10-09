@@ -95,10 +95,10 @@ class Analytics {
 
   private getAnalyticsData(): AnalyticsData {
     if (typeof window === 'undefined') return this.getDefaultData()
-    
+
     const stored = localStorage.getItem('starScavengerAnalytics')
     if (!stored) return this.getDefaultData()
-    
+
     try {
       return JSON.parse(stored)
     } catch {
@@ -166,10 +166,10 @@ class Analytics {
       },
       levelTimes: {}
     }
-    
+
     this.levelStartTime = Date.now()
     this.totalDistanceMoved = 0
-    
+
     const data = this.getAnalyticsData()
     data.totalPlays++
     this.saveAnalyticsData(data)
@@ -178,7 +178,7 @@ class Analytics {
   playerShot() {
     if (!this.currentSession) return
     this.currentSession.shooting.totalShots++
-    
+
     if (this.currentBossFight) {
       this.currentBossFight.shotsFired++
     }
@@ -187,7 +187,7 @@ class Analytics {
   shotHit(targetType: 'asteroid' | 'enemy' | 'boss') {
     if (!this.currentSession) return
     this.currentSession.shooting.shotsHit++
-    
+
     if (this.currentBossFight && targetType === 'boss') {
       this.currentBossFight.shotsHit++
       this.currentBossFight.damageDealt++
@@ -201,14 +201,14 @@ class Analytics {
 
   updatePlayerPosition(x: number, y: number) {
     if (!this.currentSession) return
-    
+
     const dx = x - this.lastPlayerPosition.x
     const dy = y - this.lastPlayerPosition.y
     const distance = Math.sqrt(dx * dx + dy * dy)
-    
+
     this.totalDistanceMoved += distance
     this.currentSession.movement.totalDistance = this.totalDistanceMoved
-    
+
     this.lastPlayerPosition = { x, y }
   }
 
@@ -220,7 +220,7 @@ class Analytics {
     score: number
   ) {
     if (!this.currentSession) return
-    
+
     const deathEvent: DeathEvent = {
       timestamp: Date.now(),
       cause,
@@ -230,9 +230,9 @@ class Analytics {
       score,
       timeAlive: Date.now() - this.currentSession.startTime
     }
-    
+
     this.currentSession.deaths.push(deathEvent)
-    
+
     if (this.currentBossFight) {
       this.currentBossFight.deathCount++
     }
@@ -240,7 +240,7 @@ class Analytics {
 
   bossFightStart(bossType: string, level: number) {
     if (!this.currentSession) return
-    
+
     this.currentBossFight = {
       bossType,
       level,
@@ -253,9 +253,9 @@ class Analytics {
       powerUpsUsedDuringFight: [],
       deathCount: 0
     }
-    
+
     this.currentSession.bossesFought++
-    
+
     const data = this.getAnalyticsData()
     data.totalBossesFought++
     this.saveAnalyticsData(data)
@@ -273,27 +273,27 @@ class Analytics {
 
   bossDefeated() {
     if (!this.currentSession || !this.currentBossFight) return
-    
+
     this.currentBossFight.outcome = 'victory'
     this.currentBossFight.endTime = Date.now()
     this.currentBossFight.timeToDefeat = this.currentBossFight.endTime - this.currentBossFight.startTime
-    
+
     this.currentSession.bossesDefeated++
     this.currentSession.bossFights.push({ ...this.currentBossFight })
-    
+
     const data = this.getAnalyticsData()
     data.totalBossesDefeated++
     this.saveAnalyticsData(data)
-    
+
     this.currentBossFight = null
   }
 
   bossFightLost() {
     if (!this.currentSession || !this.currentBossFight) return
-    
+
     this.currentBossFight.outcome = 'defeat'
     this.currentBossFight.endTime = Date.now()
-    
+
     this.currentSession.bossFights.push({ ...this.currentBossFight })
     this.currentBossFight = null
   }
@@ -306,7 +306,7 @@ class Analytics {
   usePowerUp(type: 'speed' | 'multishot' | 'bigship' | 'shield' | 'rapidfire' | 'bomb') {
     if (!this.currentSession) return
     this.currentSession.powerUpsUsed[type]++
-    
+
     if (this.currentBossFight) {
       this.currentBossFight.powerUpsUsedDuringFight.push(type)
     }
@@ -314,12 +314,12 @@ class Analytics {
 
   updateLevel(level: number) {
     if (!this.currentSession) return
-    
+
     if (this.levelStartTime > 0) {
       const timeSpent = Date.now() - this.levelStartTime
       this.currentSession.levelTimes[this.currentSession.highestLevel] = timeSpent
     }
-    
+
     if (level > this.currentSession.highestLevel) {
       this.currentSession.highestLevel = level
       this.levelStartTime = Date.now()
@@ -327,33 +327,33 @@ class Analytics {
   }
   async gameOver(finalScore: number, level: number, difficulty: string, quitReason: 'completion' | 'rage_quit' | 'pause_quit' | 'natural' = 'natural') {
     if (!this.currentSession) return
-    
+
     this.currentSession.gameOvers++
     this.currentSession.finalScore = finalScore
     this.currentSession.endTime = Date.now()
     this.currentSession.quitReason = quitReason
-    
+
     if (this.currentSession.shooting.totalShots > 0) {
-      this.currentSession.shooting.accuracy = 
+      this.currentSession.shooting.accuracy =
         (this.currentSession.shooting.shotsHit / this.currentSession.shooting.totalShots) * 100
     }
-    
+
     if (this.currentBossFight) {
       this.currentBossFight.outcome = 'abandoned'
       this.currentBossFight.endTime = Date.now()
       this.currentSession.bossFights.push({ ...this.currentBossFight })
       this.currentBossFight = null
     }
-    
+
     const data = this.getAnalyticsData()
     data.totalGameOvers++
     data.sessions.push({ ...this.currentSession })
     data.lastUpdated = Date.now()
-    
+
     if (data.sessions.length > 100) {
       data.sessions = data.sessions.slice(-100)
     }
-    
+
     this.saveAnalyticsData(data)
     await this.submitToLeaderboard(finalScore, level, difficulty)
   }
@@ -361,7 +361,7 @@ class Analytics {
   async submitToLeaderboard(score: number, level: number, difficulty: string) {
     try {
       const { data: { user } } = await this.supabase.auth.getUser()
-      
+
       if (!user) {
         console.log('No user logged in - skipping leaderboard submission')
         return
@@ -412,7 +412,7 @@ class Analytics {
 
   getAnalyticsSummary() {
     const data = this.getAnalyticsData()
-    
+
     if (data.sessions.length === 0) {
       return {
         totalPlays: 0,
@@ -420,13 +420,13 @@ class Analytics {
         avgSessionLength: 0,
         avgScore: 0,
         levelDistribution: {},
-        powerUpUsage: { 
-          speed: 0, 
-          multishot: 0, 
-          bigship: 0, 
-          shield: 0, 
-          rapidfire: 0, 
-          bomb: 0 
+        powerUpUsage: {
+          speed: 0,
+          multishot: 0,
+          bigship: 0,
+          shield: 0,
+          rapidfire: 0,
+          bomb: 0
         },
         totalBossesDefeated: 0,
         totalBossesFought: 0,
@@ -465,8 +465,8 @@ class Analytics {
       }
     }, { speed: 0, multishot: 0, bigship: 0, shield: 0, rapidfire: 0, bomb: 0 })
 
-    const retryRate = data.totalGameOvers > 0 
-      ? (data.totalRetries / data.totalGameOvers) * 100 
+    const retryRate = data.totalGameOvers > 0
+      ? (data.totalRetries / data.totalGameOvers) * 100
       : 0
 
     const bossWinRate = data.totalBossesFought > 0
@@ -484,9 +484,9 @@ class Analytics {
     })
 
     const mostCommonDeathCause = Object.entries(deathCauses)
-      .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none'
+      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'none'
 
-    const difficultyStats: Record<string, any> = {}
+    const difficultyStats: Record<string, { plays: number; avgScore: number; avgTime: number; winRate: number; totalScore: number; totalTime: number; wins: number }> = {}
     data.sessions.forEach(s => {
       const diff = s.difficulty || 'medium'
       if (!difficultyStats[diff]) {
@@ -570,7 +570,14 @@ class Analytics {
     }
   }
 
-  private generateRecommendations(metrics: any): string[] {
+  private generateRecommendations(metrics: {
+    retryRate: number
+    bossWinRate: number
+    avgAccuracy: number
+    mostCommonDeathCause: string
+    levelDistribution: Record<number, number>
+    bossDifficultyRanking: Array<{ name: string; winRate: number }>
+  }): string[] {
     const recommendations: string[] = []
 
     if (metrics.retryRate < 30) {
@@ -600,7 +607,7 @@ class Analytics {
     const totalLevelPlays = levelValues.reduce((sum, val) => sum + val, 0)
     const level1Count = (metrics.levelDistribution[1] as number) || 0
     const level1Percent = totalLevelPlays > 0 ? (level1Count / totalLevelPlays) * 100 : 0
-    
+
     if (level1Percent > 50) {
       recommendations.push('🔴 CRITICAL: Over 50% of players don\'t make it past Level 1. This is a major difficulty spike.')
     }
