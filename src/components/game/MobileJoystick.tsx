@@ -12,7 +12,7 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
   const [joystickActive, setJoystickActive] = useState(false)
   const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 })
   const touchIdRef = useRef<number | null>(null)
-
+  
   const JOYSTICK_SIZE = 140
   const JOYSTICK_RANGE = 60
   const JOYSTICK_BASE_X = 90
@@ -29,17 +29,18 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
           Math.pow(x - JOYSTICK_BASE_X, 2) + Math.pow(y - JOYSTICK_BASE_Y, 2)
         )
 
+        // If touching joystick area and no joystick is active
         if (distanceFromJoystick < 100 && touchIdRef.current === null) {
           e.preventDefault()
           e.stopPropagation()
           touchIdRef.current = touch.identifier
           setJoystickPosition({ x: JOYSTICK_BASE_X, y: JOYSTICK_BASE_Y })
           setJoystickActive(true)
-        } else {
-          // Only shoot if not touching joystick
-          if (touchIdRef.current === null) {
-            onShoot(x, y)
-          }
+        } 
+        // ✅ FIX: Allow shooting even if joystick is active (different touch)
+        else if (touch.identifier !== touchIdRef.current) {
+          // This is a different finger - allow shooting
+          onShoot(x, y)
         }
       }
     }
@@ -51,9 +52,9 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
         if (touch.identifier === touchIdRef.current) {
           e.preventDefault()
           e.stopPropagation()
+          
           const x = touch.clientX
           const y = touch.clientY
-
           const dx = x - JOYSTICK_BASE_X
           const dy = y - JOYSTICK_BASE_Y
           const distance = Math.sqrt(dx * dx + dy * dy)
@@ -101,6 +102,7 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
       document.removeEventListener('touchend', handleTouchEnd)
       document.removeEventListener('touchcancel', handleTouchEnd)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onMove, onShoot])
 
   return (
@@ -140,7 +142,7 @@ export function MobileJoystick({ onMove, onShoot }: MobileJoystickProps) {
             : 'none'
         }}
       />
-
+      
       {/* Label */}
       <div
         className="absolute text-white/60 text-sm font-medium"

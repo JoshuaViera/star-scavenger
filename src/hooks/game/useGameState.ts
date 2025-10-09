@@ -91,9 +91,11 @@ export function useGameState() {
     }
   }, [])
 
-  const resetGame = () => {
-    const diffSettings = DIFFICULTY_SETTINGS[difficulty]
-
+const resetGame = () => {
+    // ✅ FIX: Read difficulty from ref, not state
+    const currentDifficulty = gameStateRef.current.difficulty
+    const diffSettings = DIFFICULTY_SETTINGS[currentDifficulty]
+    
     gameStateRef.current = {
       player: { x: 390, y: 290, width: PLAYER_SIZE, height: PLAYER_SIZE, vx: 0, vy: 0, rotation: 0, health: 100 },
       bullets: [],
@@ -118,7 +120,7 @@ export function useGameState() {
       },
       currentLevel: gameStateRef.current.currentLevel,
       unlockedLevels: gameStateRef.current.unlockedLevels,
-      difficulty: difficulty
+      difficulty: currentDifficulty  // ✅ FIX: Use the difficulty from ref
     }
     setScore(0)
     setGameOver(false)
