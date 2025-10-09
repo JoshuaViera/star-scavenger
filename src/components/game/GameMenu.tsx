@@ -28,7 +28,6 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
     checkForSavedGame()
   }, [user])
 
-  // Auto-close auth modal when user signs in
   useEffect(() => {
     if (user && showAuthModal) {
       setShowAuthModal(false)
@@ -73,19 +72,16 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
   if (showLeaderboard) {
     return (
       <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-black to-blue-950 overflow-y-auto">
-        {/* Header */}
         <div className="flex-shrink-0 py-8 px-4 text-center">
           <h1 className="mb-4 text-5xl font-bold text-white">
             🏆 Leaderboard
           </h1>
         </div>
         
-        {/* Leaderboard - Full Width */}
         <div className="flex-1 px-4 pb-8 overflow-y-auto">
           <Leaderboard difficulty="all" limit={100} />
         </div>
         
-        {/* Back Button */}
         <div className="flex-shrink-0 py-6 text-center bg-gradient-to-t from-black/50 to-transparent">
           <button
             onClick={() => setShowLeaderboard(false)}
@@ -99,136 +95,146 @@ export function GameMenu({ onStartGame, onResumeGame, highScore }: GameMenuProps
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black to-blue-950">
-      {/* User Menu in Top Right */}
-      <div className="absolute top-4 right-4">
-        <UserMenu onLoginClick={() => setShowAuthModal(true)} />
-      </div>
+    <div className="fixed inset-0 bg-gradient-to-b from-black to-blue-950 overflow-y-auto">
+      {/* Mobile-optimized container with safe padding */}
+      <div className="min-h-screen flex flex-col py-safe px-4 pb-8">
+        
+        {/* User Menu - Top Right */}
+        <div className="flex justify-end mb-4 pt-4">
+          <UserMenu onLoginClick={() => setShowAuthModal(true)} />
+        </div>
 
-      {/* Title */}
-      <h1 className="mb-2 text-6xl font-bold text-white">
-        Star Scavenger
-      </h1>
-      <p className="mb-8 text-xl text-blue-300">
-        Survive the asteroid storm
-      </p>
+        {/* Title - Responsive sizing */}
+        <div className="text-center mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-2">
+            Star Scavenger
+          </h1>
+          <p className="text-base sm:text-lg md:text-xl text-blue-300">
+            Survive the asteroid storm
+          </p>
+        </div>
 
-      {/* High Score Display */}
-      <div className="mb-8 rounded-lg bg-blue-900/50 px-6 py-3">
-        <p className="text-center text-sm text-blue-300">High Score</p>
-        <p className="text-center text-3xl font-bold text-yellow-400">
-          {highScore.toLocaleString()}
-        </p>
-      </div>
+        {/* High Score Display */}
+        <div className="mb-6 rounded-lg bg-blue-900/50 px-6 py-3 max-w-xs mx-auto w-full">
+          <p className="text-center text-sm text-blue-300">High Score</p>
+          <p className="text-center text-2xl sm:text-3xl font-bold text-yellow-400">
+            {highScore.toLocaleString()}
+          </p>
+        </div>
 
-      {/* Main Menu Card */}
-      <div className="w-full max-w-md rounded-lg bg-gray-900/80 p-8 shadow-2xl">
-        {/* Resume Game Button */}
-        {hasSavedGame && (
-          <div className="mb-6 space-y-2">
-            <button
-              onClick={handleResumeGame}
-              className="w-full rounded-lg bg-green-600 px-6 py-4 text-xl font-bold text-white hover:bg-green-700 transition-colors"
-            >
-              ▶️ Resume Game
-            </button>
-            <button
-              onClick={handleDeleteSave}
-              className="w-full rounded bg-red-900/50 px-4 py-2 text-sm text-red-300 hover:bg-red-900/70 transition-colors"
-            >
-              Delete Saved Game
-            </button>
+        {/* Main Menu Card - Responsive width */}
+        <div className="w-full max-w-md mx-auto rounded-lg bg-gray-900/80 p-4 sm:p-6 md:p-8 shadow-2xl">
+          
+          {/* Resume Game Button */}
+          {hasSavedGame && (
+            <div className="mb-6 space-y-2">
+              <button
+                onClick={handleResumeGame}
+                className="w-full rounded-lg bg-green-600 px-6 py-4 text-lg sm:text-xl font-bold text-white hover:bg-green-700 transition-colors"
+              >
+                ▶️ Resume Game
+              </button>
+              <button
+                onClick={handleDeleteSave}
+                className="w-full rounded bg-red-900/50 px-4 py-2 text-sm text-red-300 hover:bg-red-900/70 transition-colors"
+              >
+                Delete Saved Game
+              </button>
+            </div>
+          )}
+
+          {/* Level Selection */}
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-semibold text-white">
+              Select Level
+            </label>
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map((level) => {
+                const isUnlocked = unlockedLevels.includes(level)
+                return (
+                  <button
+                    key={level}
+                    onClick={() => isUnlocked && setSelectedLevel(level)}
+                    disabled={!isUnlocked}
+                    className={`
+                      rounded-lg px-3 py-3 text-base sm:text-lg font-bold transition-all
+                      ${selectedLevel === level
+                        ? 'bg-blue-600 text-white scale-110'
+                        : isUnlocked
+                        ? 'bg-gray-700 text-white hover:bg-gray-600'
+                        : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                      }
+                    `}
+                  >
+                    {level}
+                    {!isUnlocked && <div className="text-xs">🔒</div>}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        )}
 
-        {/* Level Selection */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-semibold text-white">
-            Select Level
-          </label>
-          <div className="grid grid-cols-5 gap-2">
-            {[1, 2, 3, 4, 5].map((level) => {
-              const isUnlocked = unlockedLevels.includes(level)
-              return (
+          {/* Difficulty Selection */}
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-semibold text-white">
+              Difficulty
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['easy', 'medium', 'hard'] as const).map((difficulty) => (
                 <button
-                  key={level}
-                  onClick={() => isUnlocked && setSelectedLevel(level)}
-                  disabled={!isUnlocked}
+                  key={difficulty}
+                  onClick={() => setSelectedDifficulty(difficulty)}
                   className={`
-                    rounded-lg px-4 py-3 text-lg font-bold transition-all
-                    ${selectedLevel === level
-                      ? 'bg-blue-600 text-white scale-110'
-                      : isUnlocked
-                      ? 'bg-gray-700 text-white hover:bg-gray-600'
-                      : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                    rounded-lg px-3 py-2 text-sm sm:text-base font-semibold transition-all
+                    ${selectedDifficulty === difficulty
+                      ? difficulty === 'easy'
+                        ? 'bg-green-600 text-white'
+                        : difficulty === 'medium'
+                        ? 'bg-yellow-600 text-white'
+                        : 'bg-red-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }
                   `}
                 >
-                  {level}
-                  {!isUnlocked && <div className="text-xs">🔒</div>}
+                  {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
                 </button>
-              )
-            })}
+              ))}
+            </div>
+          </div>
+
+          {/* Start Game Button */}
+          <button
+            onClick={handleStartGame}
+            className="w-full rounded-lg bg-blue-600 px-6 py-4 text-lg sm:text-xl font-bold text-white hover:bg-blue-700 transition-colors mb-4"
+          >
+            🚀 Start Game
+          </button>
+
+          {/* Leaderboard Button */}
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="w-full rounded-lg bg-purple-600 px-6 py-3 text-base sm:text-lg font-semibold text-white hover:bg-purple-700 transition-colors"
+          >
+            🏆 Leaderboard
+          </button>
+
+          {/* Controls Info - Responsive text */}
+          <div className="mt-6 rounded-lg bg-gray-800 p-4">
+            <p className="mb-2 text-sm font-semibold text-white">Controls:</p>
+            <p className="text-xs text-gray-300">
+              <span className="font-semibold">WASD</span> - Move
+              <br />
+              <span className="font-semibold">Mouse</span> - Aim
+              <br />
+              <span className="font-semibold">Left Click</span> - Shoot
+              <br />
+              <span className="font-semibold">P</span> - Pause
+            </p>
           </div>
         </div>
 
-        {/* Difficulty Selection */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-semibold text-white">
-            Difficulty
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {(['easy', 'medium', 'hard'] as const).map((difficulty) => (
-              <button
-                key={difficulty}
-                onClick={() => setSelectedDifficulty(difficulty)}
-                className={`
-                  rounded-lg px-4 py-2 font-semibold transition-all
-                  ${selectedDifficulty === difficulty
-                    ? difficulty === 'easy'
-                      ? 'bg-green-600 text-white'
-                      : difficulty === 'medium'
-                      ? 'bg-yellow-600 text-white'
-                      : 'bg-red-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }
-                `}
-              >
-                {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Start Game Button */}
-        <button
-          onClick={handleStartGame}
-          className="w-full rounded-lg bg-blue-600 px-6 py-4 text-xl font-bold text-white hover:bg-blue-700 transition-colors mb-4"
-        >
-          🚀 Start Game
-        </button>
-
-        {/* Leaderboard Button */}
-        <button
-          onClick={() => setShowLeaderboard(true)}
-          className="w-full rounded-lg bg-purple-600 px-6 py-3 text-lg font-semibold text-white hover:bg-purple-700 transition-colors"
-        >
-          🏆 Leaderboard
-        </button>
-
-        {/* Controls Info */}
-        <div className="mt-6 rounded-lg bg-gray-800 p-4">
-          <p className="mb-2 text-sm font-semibold text-white">Controls:</p>
-          <p className="text-xs text-gray-300">
-            <span className="font-semibold">WASD</span> - Move
-            <br />
-            <span className="font-semibold">Mouse</span> - Aim
-            <br />
-            <span className="font-semibold">Left Click</span> - Shoot
-            <br />
-            <span className="font-semibold">P</span> - Pause
-          </p>
-        </div>
+        {/* Extra bottom padding for mobile safe area */}
+        <div className="h-8 sm:h-4" />
       </div>
 
       {/* Auth Modal */}
