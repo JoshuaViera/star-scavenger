@@ -580,7 +580,7 @@ export function useGameLoop(
         state.boss.maxHealth = state.boss.health
 
         state.bossActive = true
-        analytics.bossFight()
+        analytics.bossFightStart(state.boss.type, level.number)
         state.asteroids = []
         state.enemies = []
         state.enemyBullets = []
