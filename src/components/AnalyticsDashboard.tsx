@@ -70,10 +70,10 @@ export default function AnalyticsDashboard() {
           <h3 className="text-xl font-bold text-white mb-4">Highest Level Reached Distribution</h3>
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map(level => {
-              const count = summary.levelDistribution[level] || 0
+              const count = (summary.levelDistribution as Record<number, number>)[level] || 0
               const percentage = summary.totalPlays > 0 ? (count / summary.totalPlays) * 100 : 0
               const barWidth = levelChartMax > 0 ? (count / levelChartMax) * 100 : 0
-
+              
               return (
                 <div key={level} className="flex items-center gap-4">
                   <div className="w-20 text-white">Level {level}</div>
@@ -89,11 +89,6 @@ export default function AnalyticsDashboard() {
                 </div>
               )
             })}
-          </div>
-          <div className="mt-4 text-sm text-gray-400">
-            {Object.keys(summary.levelDistribution).length === 0 && 'No data yet - play some games!'}
-            {summary.levelDistribution[3] > summary.levelDistribution[4] * 3 && 
-              'Notice: High drop-off at Level 3 - consider difficulty adjustment'}
           </div>
         </div>
 
@@ -117,10 +112,6 @@ export default function AnalyticsDashboard() {
               <div className="text-xs text-gray-400">collected</div>
             </div>
           </div>
-          <div className="mt-4 text-sm text-gray-400">
-            {summary.powerUpUsage.bigship < summary.powerUpUsage.speed / 3 && 
-              'Insight: Big Ship rarely collected - may need rebalancing'}
-          </div>
         </div>
 
         {/* Export Button */}
@@ -138,7 +129,7 @@ export default function AnalyticsDashboard() {
           <h3 className="text-lg font-bold text-white mb-2">Key Insights</h3>
           <ul className="text-sm text-gray-300 space-y-2">
             <li>
-            <strong>Retry Rate:</strong> {summary.retryRate}% of players click &quot;Play Again&quot; after game over.
+              <strong>Retry Rate:</strong> {summary.retryRate}% of players click &quot;Play Again&quot; after game over.
               {summary.retryRate > 60 && ' This is excellent and validates your core gameplay loop!'}
               {summary.retryRate < 40 && ' This suggests players may be frustrated - consider difficulty adjustments.'}
             </li>
