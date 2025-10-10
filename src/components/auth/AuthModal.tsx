@@ -42,7 +42,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               }
             }
           }}
-          providers={['google', 'github']}
+          providers={[]}
           redirectTo={typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : '/dashboard'}
           onlyThirdPartyProviders={false}
         />
